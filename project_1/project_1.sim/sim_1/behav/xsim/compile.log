@@ -1,0 +1,10 @@
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/MisCosas/1-Facultad/5to/ARQUI/tps/tp-final-risc-v-pipeline-processor/project_1/project_1.srcs/sources_1/Generic/adder.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module Adder
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/MisCosas/1-Facultad/5to/ARQUI/tps/tp-final-risc-v-pipeline-processor/project_1/project_1.srcs/sources_1/IF/InstructionFetch.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module InstructionFetch
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/MisCosas/1-Facultad/5to/ARQUI/tps/tp-final-risc-v-pipeline-processor/project_1/project_1.srcs/sources_1/IF/InstructionMemory.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module InstructionMemory
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/MisCosas/1-Facultad/5to/ARQUI/tps/tp-final-risc-v-pipeline-processor/project_1/project_1.srcs/sources_1/Generic/posEdgeRegister.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module PosEdgeRegister
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/MisCosas/1-Facultad/5to/ARQUI/tps/tp-final-risc-v-pipeline-processor/project_1/project_1.srcs/sim_1/IF/tb_IF.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module tb_IF
