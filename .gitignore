@@ -1,0 +1,19 @@
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Vivado generated files
+*.jou
+*.log
+*.str
+*.xpr
+*.bit
+*.bin
+*.mcs
+*.prm
+project_1/project_1.cache/
+project_1/project_1.hw/
+project_1/project_1.ip_user_files/
+project_1/project_1.sim/
+project_1/project_1.runs/
+project_1/project_1.srcs/
