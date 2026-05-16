@@ -2,16 +2,16 @@
 
 module mux3_8 #(
     parameter DATA_WIDTH = 32
-)(
-    input  logic [DATA_WIDTH-1:0] i_a,
-    input  logic [DATA_WIDTH-1:0] i_b,
-    input  logic [DATA_WIDTH-1:0] i_c,
-    input  logic [DATA_WIDTH-1:0] i_d,
-    input  logic [DATA_WIDTH-1:0] i_e,
-    input  logic [DATA_WIDTH-1:0] i_f,
-    input  logic [DATA_WIDTH-1:0] i_g,
-    input  logic [DATA_WIDTH-1:0] i_h,
-    input  logic [2:0]            i_sel,
+) (
+    input logic [DATA_WIDTH-1:0] i_a,
+    input logic [DATA_WIDTH-1:0] i_b,
+    input logic [DATA_WIDTH-1:0] i_c,
+    input logic [DATA_WIDTH-1:0] i_d,
+    input logic [DATA_WIDTH-1:0] i_e,
+    input logic [DATA_WIDTH-1:0] i_f,
+    input logic [DATA_WIDTH-1:0] i_g,
+    input logic [DATA_WIDTH-1:0] i_h,
+    input logic [           2:0] i_sel,
 
     output logic [DATA_WIDTH-1:0] o_out
 );

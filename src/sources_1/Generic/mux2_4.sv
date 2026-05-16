@@ -2,12 +2,12 @@
 
 module mux2_4 #(
     parameter DATA_WIDTH = 32
-)(
-    input  logic [DATA_WIDTH-1:0] i_a,
-    input  logic [DATA_WIDTH-1:0] i_b,
-    input  logic [DATA_WIDTH-1:0] i_c,
-    input  logic [DATA_WIDTH-1:0] i_d,
-    input  logic [1:0]            i_sel,
+) (
+    input logic [DATA_WIDTH-1:0] i_a,
+    input logic [DATA_WIDTH-1:0] i_b,
+    input logic [DATA_WIDTH-1:0] i_c,
+    input logic [DATA_WIDTH-1:0] i_d,
+    input logic [           1:0] i_sel,
 
     output logic [DATA_WIDTH-1:0] o_out
 );

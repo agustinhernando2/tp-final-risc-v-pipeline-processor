@@ -3,14 +3,14 @@
 module IF_ID_Buffer #(
     parameter NB_PC   = 32,
     parameter NB_INST = 32
-)(
-    input  logic                  i_clk,
-    input  logic                  i_reset,
-    input  logic                  i_enable,
-    input  logic [NB_PC-1:0]     i_PC,
-    input  logic [NB_INST-1:0]   i_instruction,
-    output logic [NB_PC-1:0]     o_PC,
-    output logic [NB_INST-1:0]   o_instruction
+) (
+    input  logic               i_clk,
+    input  logic               i_reset,
+    input  logic               i_enable,
+    input  logic [  NB_PC-1:0] i_PC,
+    input  logic [NB_INST-1:0] i_instruction,
+    output logic [  NB_PC-1:0] o_PC,
+    output logic [NB_INST-1:0] o_instruction
 );
 
     always_ff @(posedge i_clk) begin
@@ -19,7 +19,7 @@ module IF_ID_Buffer #(
             o_instruction <= '0;
         end else if (i_enable) begin
             o_PC          <= i_PC;
-            o_instruction  <= i_instruction;
+            o_instruction <= i_instruction;
         end
     end
 

@@ -5,20 +5,21 @@ module tb_ImmediateExtend;
     localparam DATA_WIDTH = 32;
 
     logic [DATA_WIDTH-1:0] instruction;
-    logic [2:0]            imm_src;
+    logic [           2:0] imm_src;
     logic [DATA_WIDTH-1:0] immediate;
 
-    int pass_count;
-    int fail_count;
+    int                    pass_count;
+    int                    fail_count;
 
-    ImmediateExtend #(.DATA_WIDTH(DATA_WIDTH)) DUT (
-        .i_instruction (instruction),
-        .i_ImmSrc      (imm_src),
-        .o_immediate   (immediate)
+    ImmediateExtend #(
+        .DATA_WIDTH(DATA_WIDTH)
+    ) DUT (
+        .i_instruction(instruction),
+        .i_ImmSrc     (imm_src),
+        .o_immediate  (immediate)
     );
 
-    task automatic check(input string label,
-                         input logic [DATA_WIDTH-1:0] got, expected);
+    task automatic check(input string label, input logic [DATA_WIDTH-1:0] got, expected);
         if (got === expected) begin
             $display("  PASS  %s: 0x%08h", label, got);
             pass_count++;
@@ -38,12 +39,12 @@ module tb_ImmediateExtend;
         // 31:20=FFF  19:15=00000  14:12=000  11:7=00001  6:0=0010011
         // ----------------------------------------------------------------
         $display("--- I-type ---");
-        instruction = 32'hFFF0_0093; // addi x1, x0, -1
+        instruction = 32'hFFF0_0093;  // addi x1, x0, -1
         imm_src     = 3'b000;
         #1;
         check("addi x1,x0,-1 → -1", immediate, 32'hFFFF_FFFF);
 
-        instruction = 32'h0050_0093; // addi x1, x0, 5
+        instruction = 32'h0050_0093;  // addi x1, x0, 5
         imm_src     = 3'b000;
         #1;
         check("addi x1,x0,5  → 5", immediate, 32'h0000_0005);
@@ -56,17 +57,17 @@ module tb_ImmediateExtend;
         // inst = 1111111_00010_00001_010_11100_0100011
         // ----------------------------------------------------------------
         $display("--- S-type ---");
-        instruction = 32'hFE20_AE23; // sw x2, -4(x1)
+        instruction = 32'hFE20_AE23;  // sw x2, -4(x1)
         imm_src     = 3'b001;
         #1;
         check("sw x2,-4(x1) → -4", immediate, 32'hFFFF_FFFC);
 
         // SW x3, 8(x1): imm=8=0000_0000_1000 → inst[31:25]=0000000, inst[11:7]=01000
         // inst = 0000000_00011_00001_010_01000_0100011
-        instruction = 32'h0030_A423; // sw x3, 8(x1)
+        instruction = 32'h0030_A423;  // sw x3, 8(x1)
         imm_src     = 3'b001;
         #1;
-        check("sw x3,8(x1)  → 8",  immediate, 32'h0000_0008);
+        check("sw x3,8(x1)  → 8", immediate, 32'h0000_0008);
 
         // ----------------------------------------------------------------
         // B-type: BEQ x1, x2, +8
@@ -77,15 +78,15 @@ module tb_ImmediateExtend;
         // inst = 0_000000_00010_00001_000_0100_0_1100011
         // ----------------------------------------------------------------
         $display("--- B-type ---");
-        instruction = 32'h0020_8463; // beq x1, x2, +8
+        instruction = 32'h0020_8463;  // beq x1, x2, +8
         imm_src     = 3'b010;
         #1;
-        check("beq +8 → 8",   immediate, 32'h0000_0008);
+        check("beq +8 → 8", immediate, 32'h0000_0008);
 
         // BNE x1, x2, -4: imm=-4 → 1111111111100 (13-bit signed)
         //   inst[31]=1, inst[7]=1, inst[30:25]=111111, inst[11:8]=1110
         // inst = 1_111111_00010_00001_001_1110_1_1100011
-        instruction = 32'hFE20_9EE3; // bne x1, x2, -4
+        instruction = 32'hFE20_9EE3;  // bne x1, x2, -4
         imm_src     = 3'b010;
         #1;
         check("bne -4  → -4", immediate, 32'hFFFF_FFFC);
@@ -96,7 +97,7 @@ module tb_ImmediateExtend;
         // inst = 00010010001101000101_00001_0110111
         // ----------------------------------------------------------------
         $display("--- U-type ---");
-        instruction = 32'h1234_50B7; // lui x1, 0x12345
+        instruction = 32'h1234_50B7;  // lui x1, 0x12345
         imm_src     = 3'b011;
         #1;
         check("lui 0x12345 → 0x12345000", immediate, 32'h1234_5000);
@@ -116,25 +117,23 @@ module tb_ImmediateExtend;
         // inst = 0_0000000010_0_00000000_00001_1101111
         // ----------------------------------------------------------------
         $display("--- J-type ---");
-        instruction = 32'h0040_00EF; // jal x1, +4
+        instruction = 32'h0040_00EF;  // jal x1, +4
         imm_src     = 3'b100;
         #1;
-        check("jal +4  → 4",  immediate, 32'h0000_0004);
+        check("jal +4  → 4", immediate, 32'h0000_0004);
 
         // JAL x0, -8: imm=-8
         // -8 = 1111111111111111111000 (21-bit)
         //   inst[31]=1 inst[19:12]=11111111 inst[20]=1 inst[30:21]=1111111100
         // inst = 1_1111111100_1_11111111_00000_1101111
-        instruction = 32'hFF9F_F06F; // jal x0, -8
+        instruction = 32'hFF9F_F06F;  // jal x0, -8
         imm_src     = 3'b100;
         #1;
         check("jal -8  → -8", immediate, 32'hFFFF_FFF8);
 
         $display("\n--- Results: %0d passed, %0d failed ---", pass_count, fail_count);
-        if (fail_count == 0)
-            $display("ALL TESTS PASSED");
-        else
-            $display("SOME TESTS FAILED");
+        if (fail_count == 0) $display("ALL TESTS PASSED");
+        else $display("SOME TESTS FAILED");
 
         $finish;
     end
