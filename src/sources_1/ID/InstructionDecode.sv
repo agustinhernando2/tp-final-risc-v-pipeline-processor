@@ -1,13 +1,14 @@
 `timescale 1ns / 1ps
 
 module instructionDecode #(
-    parameter NB_INST   = 32,
-    parameter NB_REG    = 5,
+    parameter NB_INST    = 32,
+    parameter NB_REG     = 5,
     parameter DATA_WIDTH = 32
 )(
     input  logic                   i_clk,
     input  logic                   i_reset,
     input  logic [NB_INST-1:0]    i_instruction,
+    input  logic [2:0]             i_ImmSrc,       // immediate format, from control unit
     // WB feedback
     input  logic [NB_REG-1:0]     i_write_reg,
     input  logic [DATA_WIDTH-1:0] i_write_data,
@@ -40,12 +41,12 @@ module instructionDecode #(
         .o_read_reg_2 (o_read_data_2)
     );
 
-    SignExtension #(
-        .IMMEDIATE_SIZE(12),
-        .DATA_SIZE(DATA_WIDTH)
-    ) SE (
-        .i_immediate(i_instruction[31:20]),
-        .o_extended (o_immediate)
+    ImmediateExtend #(
+        .DATA_WIDTH(DATA_WIDTH)
+    ) IMM (
+        .i_instruction (i_instruction),
+        .i_ImmSrc      (i_ImmSrc),
+        .o_immediate   (o_immediate)
     );
 
 endmodule

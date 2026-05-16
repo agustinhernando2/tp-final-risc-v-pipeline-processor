@@ -19,3 +19,8 @@ project_1/project_1.ip_user_files/
 project_1/project_1.sim/
 project_1/project_1.runs/
 project_1/project_1.srcs/
+
+# Simulation files
+xsim.dir
+*.pb
+*wdb

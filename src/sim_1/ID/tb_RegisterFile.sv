@@ -38,7 +38,7 @@ module tb_RegisterFile;
 
     task automatic check(input string label, input logic [DATA_WIDTH-1:0] got, expected);
         if (got === expected) begin
-            $display("  PASS  %s: got 0x%08h", label, got);
+            $display("  PASS  %s: 0x%08h", label, got);
             pass_count++;
         end else begin
             $display("  FAIL  %s: expected 0x%08h, got 0x%08h", label, expected, got);
