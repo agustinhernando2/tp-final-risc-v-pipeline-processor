@@ -83,7 +83,7 @@ module ControlUnit #(
                 o_Jump     = 1'b1;
                 o_ImmSrc   = 3'b000;
             end
-            default: ; // all outputs already set to safe defaults
+            default: ;
         endcase
     end
 
