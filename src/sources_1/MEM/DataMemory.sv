@@ -33,24 +33,24 @@ module DataMemory #(
     // Combinational read with sign/zero extension based on funct3
     always_comb begin
         case (i_funct3)
-            3'b000:
-            o_read_data = {
-                {(DATA_WIDTH - 8) {r_mem[i_addr][7]}}, r_mem[i_addr][7:0]
-            };  // LB: byte sign-extended
-            3'b001:
-            o_read_data = {
-                {(DATA_WIDTH - 16) {r_mem[i_addr][15]}}, r_mem[i_addr][15:0]
-            };  // LH: halfword sign-extended
-            3'b010: o_read_data = r_mem[i_addr];  // LW: word
-            3'b100:
-            o_read_data = {
-                {(DATA_WIDTH - 8) {1'b0}}, r_mem[i_addr][7:0]
-            };  // LBU: byte zero-extended
-            3'b101:
-            o_read_data = {
-                {(DATA_WIDTH - 16) {1'b0}}, r_mem[i_addr][15:0]
-            };  // LHU: halfword zero-extended
-            3'b110: o_read_data = r_mem[i_addr];  // LWU: word zero-extended (same as LW for 32-bit)
+
+            // LB: byte sign-extended
+            3'b000: o_read_data = {{(DATA_WIDTH - 8) {r_mem[i_addr][7]}}, r_mem[i_addr][7:0]};
+
+            // LH: halfword sign-extended
+            3'b001: o_read_data = {{(DATA_WIDTH - 16) {r_mem[i_addr][15]}}, r_mem[i_addr][15:0]};
+
+            // LW: word
+            3'b010: o_read_data = r_mem[i_addr];
+
+            // LBU: byte zero-extended
+            3'b100: o_read_data = {{(DATA_WIDTH - 8) {1'b0}}, r_mem[i_addr][7:0]};
+
+            // LHU: halfword zero-extended
+            3'b101: o_read_data = {{(DATA_WIDTH - 16) {1'b0}}, r_mem[i_addr][15:0]};
+
+            // LWU: word zero-extended (same as LW for 32-bit)
+            3'b110:  o_read_data = r_mem[i_addr];
             default: o_read_data = r_mem[i_addr];
         endcase
     end
