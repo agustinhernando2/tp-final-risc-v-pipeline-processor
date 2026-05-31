@@ -1,14 +1,33 @@
 # RISC-V 5-Stage Pipelined Processor
 
-A 5-stage pipelined processor implemented in Verilog, targeting the **Basys-3 FPGA** board.  
+A 5-stage pipelined RISC-V processor implemented in SystemVerilog, targeting the **Basys-3 FPGA** board. The design follows the classic Patterson & Hennessy pipeline: **IF → ID → EX → MEM → WB**, with full data-hazard handling (forwarding + load-use stall).
 
 ---
 
 ## Architecture Overview
 
+The top-level module (`RISCV`) exposes a UART interface (`i_rx` / `o_tx`) for loading programs and interacting with the processor via a host PC. All five stages are wired end-to-end with forwarding and hazard detection.
 
+---
 
-The top-level module (`RISCV`) exposes a UART interface (`i_rx` / `o_tx`) for loading programs and interacting with the processor via a host PC.
+## Implementation Progress
+
+The full staged plan lives in [`plans/plan.md`](plans/plan.md). Current status:
+
+| Stage | Title | Status |
+|-------|-------|--------|
+| 0 | Fix existing bugs (`RegisterFile`, `InstructionDecode`) | ✅ Done |
+| 1 | Immediate extension (I/S/B/U/J types) | ✅ Done |
+| 2 | Control Unit | ✅ Done |
+| 3 | EX / ALU | ✅ Done |
+| 4 | Pipeline buffers (ID_EX, EX_MEM, MEM_WB) | ✅ Done |
+| 5 | Data Memory | ✅ Done |
+| 6 | WB + full pipeline wired end-to-end | ✅ Done |
+| 7 | Hazard detection + forwarding | ✅ Done |
+| 8 | Branch & jump handling | ⬜ Pending |
+| 9 | UART & debug unit | ⬜ Pending |
+| 10 | Operating modes (continuous / step-by-step) | ⬜ Pending |
+| 11 | Timing analysis & frequency optimization | ⬜ Pending |
 
 ---
 
@@ -16,127 +35,91 @@ The top-level module (`RISCV`) exposes a UART interface (`i_rx` / `o_tx`) for lo
 
 ### Pipeline Stages
 
-| Stage | Status | Module | File |
-|-------|--------|--------|------|
-| IF — Instruction Fetch | ✅ Done | `InstructionFetch` | `src/sources_1/IF/InstructionFetch.sv` |
-| ID — Instruction Decode | 🔧 WIP | `instructionDecode` | `src/sources_1/ID/InstructionDecode.sv` |
-| EX — Execute | ⬜ Pending | — | — |
-| MEM — Memory Access | ⬜ Pending | — | — |
-| WB — Write Back | ⬜ Pending | — | — |
+| Stage | Module | File |
+|-------|--------|------|
+| IF — Instruction Fetch | `InstructionFetch` | `src/sources_1/IF/InstructionFetch.sv` |
+| ID — Instruction Decode | `instructionDecode` | `src/sources_1/ID/InstructionDecode.sv` |
+| EX — Execute | `ExecuteStage` | `src/sources_1/EX/ExecuteStage.sv` |
+| MEM — Memory Access | `MemoryStage` | `src/sources_1/MEM/MemoryStage.sv` |
+| WB — Write Back | `WriteBackStage` | `src/sources_1/WB/WriteBackStage.sv` |
+
+Top level: `src/sources_1/Top/riscv.sv` — `RISCV` module wiring all stages.
 
 ### Pipeline Buffers
 
-| Buffer | Status | File |
-|--------|--------|------|
-| `IF_ID_Buffer` | ✅ Done | `src/sources_1/Buffers/IF_ID_Buffer.sv` |
-| `ID_EX_Buffer` | 🔧 WIP (needs ID→EX signals) | `src/sources_1/Buffers/ID_EX_Buffer.sv` |
-| `EX_MEM_Buffer` | ⬜ Pending | — |
-| `MEM_WB_Buffer` | ⬜ Pending | — |
-
-### Generic Building Blocks
-
-| Module | Status | Description |
-|--------|--------|-------------|
-| `PosEdgeRegister` | ✅ Done | Parameterized FF with sync reset and enable |
-| `Adder` | ✅ Done | Parameterized combinational adder (PC+1) |
-| `mux1_2` | ✅ Done | 2-input parameterized mux |
-| `mux2_4` | ✅ Done | 4-input parameterized mux |
-| `mux3_8` | ✅ Done | 8-input parameterized mux |
+| Buffer | File |
+|--------|------|
+| `IF_ID_Buffer` | `src/sources_1/Buffers/IF_ID_Buffer.sv` |
+| `ID_EX_Buffer` | `src/sources_1/Buffers/ID_EX_Buffer.sv` |
+| `EX_MEM_Buffer` | `src/sources_1/Buffers/EX_MEM_Buffer.sv` |
+| `MEM_WB_Buffer` | `src/sources_1/Buffers/MEM_WB_Buffer.sv` |
 
 ### Sub-modules
 
-| Module | Status | File |
-|--------|--------|------|
-| `InstructionMemory` | ✅ Done | `src/sources_1/IF/InstructionMemory.sv` |
-| `RegisterFile` | 🔧 WIP (transposed array dims) | `src/sources_1/ID/RegisterFile.sv` |
-| `SignExtension` | ✅ Done | `src/sources_1/ID/SignExtension.sv` |
-| Control Unit | ⬜ Pending | — |
-| ALU | ⬜ Pending | — |
-| Data Memory | ⬜ Pending | — |
-| UART | ⬜ Pending | — |
-| Hazard Detection Unit | ⬜ Pending | — |
-| Forwarding Unit | ⬜ Pending | — |
+| Module | File |
+|--------|------|
+| `InstructionMemory` | `src/sources_1/IF/InstructionMemory.sv` |
+| `RegisterFile` | `src/sources_1/ID/RegisterFile.sv` |
+| `ImmediateExtend` | `src/sources_1/ID/ImmediateExtend.sv` |
+| `ControlUnit` | `src/sources_1/ID/ControlUnit.sv` |
+| `ALU` | `src/sources_1/EX/ALU.sv` |
+| `ALUControl` | `src/sources_1/EX/ALUControl.sv` |
+| `DataMemory` | `src/sources_1/MEM/DataMemory.sv` |
+| `ForwardingUnit` | `src/sources_1/Hazard/ForwardingUnit.sv` |
+| `HazardDetectionUnit` | `src/sources_1/Hazard/HazardDetectionUnit.sv` |
+
+### Generic Building Blocks
+
+| Module | Description |
+|--------|-------------|
+| `PosEdgeRegister` | Parameterized FF with sync reset and enable |
+| `Adder` | Parameterized combinational adder (PC+1) |
+| `mux1_2` | 2-input parameterized mux |
+| `mux2_4` | 4-input parameterized mux |
+| `mux3_8` | 8-input parameterized mux |
 
 ---
 
-## Known Issues
+## Instruction Set Coverage
 
-- `instructionDecode`: duplicate `i_regWrite` port declaration — must fix before simulating.
-- `RegisterFile`: `r_RF` array dimensions are transposed.
-- `ID_EX_Buffer`: currently a copy of `IF_ID_Buffer` — needs update once control unit is designed.
-- `RISCV` top module: empty skeleton — pipeline stages not yet wired.
+| Group | Instructions | Opcode | Key signals |
+|-------|-------------|--------|-------------|
+| R-type | ADD, SUB, AND, OR, XOR, SLL, SRL, SRA, SLT, SLTU | `0110011` | ALUSrc=0, RegWrite=1 |
+| I-arith | ADDI, ANDI, ORI, XORI, SLTI, SLTIU | `0010011` | ALUSrc=1, RegWrite=1 |
+| Load | LB, LBU, LH, LHU, LW, LWU | `0000011` | MemRead=1, MemToReg=1 |
+| Store | SB, SH, SW | `0100011` | MemWrite=1 |
+| Branch | BEQ, BNE | `1100011` | Branch=1, ALUSrc=0 |
+| LUI | LUI | `0110111` | ALUSrc=1, RegWrite=1 |
+| Jump | JAL | `1101111` | Jump=1, RegWrite=1 |
+| Jump-reg | JALR | `1100111` | Jump=1, ALUSrc=1, RegWrite=1 |
 
----
-
-## Instruction Set Implementation Progress
-
-### R-Type Instructions
-
-| Instruction | Description | Status |
-|-------------|-------------|--------|
-| `SLL` | Shift Left Logical | ⬜ Pending |
-| `SRL` | Shift Right Logical | ⬜ Pending |
-| `SRA` | Shift Right Arithmetic | ⬜ Pending |
-| `SLLV` | Shift Left Logical Variable | ⬜ Pending |
-| `SRLV` | Shift Right Logical Variable | ⬜ Pending |
-| `SRAV` | Shift Right Arithmetic Variable | ⬜ Pending |
-| `ADDU` | Add Unsigned | ⬜ Pending |
-| `SUBU` | Subtract Unsigned | ⬜ Pending |
-| `AND` | Bitwise AND | ⬜ Pending |
-| `OR` | Bitwise OR | ⬜ Pending |
-| `XOR` | Bitwise XOR | ⬜ Pending |
-| `NOR` | Bitwise NOR | ⬜ Pending |
-| `SLT` | Set Less Than (signed) | ⬜ Pending |
-| `SLTU` | Set Less Than Unsigned | ⬜ Pending |
-
-### I-Type Instructions
-
-| Instruction | Description | Status |
-|-------------|-------------|--------|
-| `LB` | Load Byte | ⬜ Pending |
-| `LH` | Load Halfword | ⬜ Pending |
-| `LW` | Load Word | ⬜ Pending |
-| `LWU` | Load Word Unsigned | ⬜ Pending |
-| `LBU` | Load Byte Unsigned | ⬜ Pending |
-| `LHU` | Load Halfword Unsigned | ⬜ Pending |
-| `SB` | Store Byte | ⬜ Pending |
-| `SH` | Store Halfword | ⬜ Pending |
-| `SW` | Store Word | ⬜ Pending |
-| `ADDI` | Add Immediate | ⬜ Pending |
-| `ADDIU` | Add Immediate Unsigned | ⬜ Pending |
-| `ANDI` | AND Immediate | ⬜ Pending |
-| `ORI` | OR Immediate | ⬜ Pending |
-| `XORI` | XOR Immediate | ⬜ Pending |
-| `LUI` | Load Upper Immediate | ⬜ Pending |
-| `SLTI` | Set Less Than Immediate (signed) | ⬜ Pending |
-| `SLTIU` | Set Less Than Immediate Unsigned | ⬜ Pending |
-| `BEQ` | Branch if Equal | ⬜ Pending |
-| `BNE` | Branch if Not Equal | ⬜ Pending |
-
-### J-Type Instructions
-
-| Instruction | Description | Status |
-|-------------|-------------|--------|
-| `J` | Jump | ⬜ Pending |
-| `JAL` | Jump and Link | ⬜ Pending |
-| `JR` | Jump Register | ⬜ Pending |
-| `JALR` | Jump and Link Register | ⬜ Pending |
+> Datapath and control for branch/jump are decoded, but flush logic (Stage 8) is not yet implemented — see Known Issues.
 
 ---
 
 ## Testbenches
 
+Located in `src/sim_1/`. Run them via the `run-tests` skill or the CLI snippet below.
+
 | Testbench | Covers | File |
 |-----------|--------|------|
-| `tb_IF` | `InstructionFetch` standalone | `src/sim_1/IF/tb_IF.sv` |
-| `tb_IF_ID_Buffer` | IF/ID pipeline register | `src/sim_1/IF/tb_IF_ID_Buffer.sv` |
-| `tb_adder` | Generic adder | `src/sim_1/IF/tb_adder.sv` |
-| `tb_IF_ID` | IF → IF_ID_Buffer integration | `src/sim_1/Integrador/tb_IF_ID.sv` |
+| `tb_RegisterFile` | `RegisterFile` (x0 zero, write/read, reset) | `src/sim_1/ID/tb_RegisterFile.sv` |
+| `tb_ImmediateExtend` | I/S/B/U/J immediate decoding | `src/sim_1/ID/tb_ImmediateExtend.sv` |
+| `tb_ControlUnit` | Control signals per opcode | `src/sim_1/ID/tb_ControlUnit.sv` |
+| `tb_ALU` | All ALU operations + edge cases | `src/sim_1/EX/tb_ALU.sv` |
+| `tb_ExecuteStage` | EX stage (ALU + decoder + forwarding muxes) | `src/sim_1/EX/tb_ExecuteStage.sv` |
+| `tb_DataMemory` | Byte/halfword/word access | `src/sim_1/MEM/tb_DataMemory.sv` |
+| `tb_Buffers` | Pipeline buffers hold/forward | `src/sim_1/Buffers/tb_Buffers.sv` |
+| `tb_Forwarding` | Forwarding + load-use stall | `src/sim_1/Hazard/tb_Forwarding.sv` |
+| `tb_IF_to_WB` | Full IF→ID→EX→MEM→WB integration (NOP-padded) | `src/sim_1/Integrador/tb_IF_to_WB.sv` |
+
+> Full suite: **100 tests passing across 9 testbenches.** Run via the `run-tests` skill or `bash .claude/skills/run-tests/scripts/run_tests.sh`.
 
 ---
 
 ## Design Conventions
 
+- **Language:** SystemVerilog (`.sv`). Use `logic`, `always_ff`, `always_comb` — never plain `always`.
 - **Port naming:** `i_` inputs, `o_` outputs, `w_` internal wires, `r_` registers/state.
 - **Parameterization:** all widths (PC, instruction, data) are parameters; default 32-bit. No hardcoded widths.
 - **PC increment:** adds 1 (word-addressed), not 4 — the PC indexes words, not bytes.
@@ -155,12 +138,20 @@ The top-level module (`RISCV`) exposes a UART interface (`i_rx` / `o_tx`) for lo
 ### CLI
 
 ```bash
-xvlog --sv src/sources_1/**/*.sv src/sim_1/<tb_dir>/<tb_file>.sv
+mkdir -p sim_out && cd sim_out
+xvlog --sv ../src/sources_1/**/*.sv ../src/sim_1/<tb_dir>/<tb_file>.sv
 xelab -debug typical <top_module> -s sim_snapshot
-xsim sim_snapshot --tclbatch <tcl_script>
+xsim sim_snapshot --runall
 ```
 
 > `program.hex` must be present in the xsim working directory. Vivado copies it automatically when launched from the project.
+
+---
+
+## Known Issues / WIP
+
+- **Branch/jump control hazards** not yet handled (Stage 8). Programs with BEQ/BNE/JAL/JALR require manual NOP padding for now.
+- **UART and debug unit** not yet implemented (Stage 9). The `RISCV` module exposes hooks (`i_if_enable`, `i_mem_wr` / `i_mem_addr` / `i_mem_data`) for future program loading via the debug unit.
 
 ---
 

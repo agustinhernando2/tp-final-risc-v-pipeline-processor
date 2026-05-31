@@ -68,7 +68,7 @@ module RISCV #(
         .i_clk        (i_clk),
         .i_reset      (i_reset),
         .i_enable     (w_if_id_enable),
-        .i_PC         (w_if_pc_inc),
+        .i_PC         (w_if_pc),             //VER: capaz va w_if_pc
         .i_instruction(w_if_instruction),
         .o_PC         (w_if_id_pc),
         .o_instruction(w_if_id_instruction)

@@ -37,7 +37,7 @@ module InstructionFetch #(
         .DATA_WIDTH(NB_PC)
     ) u_PC_increment (
         .i_operand_a(w_PC),
-        .i_operand_b({{(NB_PC - 1) {1'b0}}, 1'b1}),
+        .i_operand_b(NB_PC'(1)),
         .o_sum      (o_PC_increment)
     );
 
