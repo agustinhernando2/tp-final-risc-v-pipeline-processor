@@ -7,6 +7,7 @@ module IF_ID_Buffer #(
     input  logic               i_clk,
     input  logic               i_reset,
     input  logic               i_enable,
+    input  logic               i_flush,
     input  logic [  NB_PC-1:0] i_PC,
     input  logic [NB_INST-1:0] i_instruction,
     output logic [  NB_PC-1:0] o_PC,
@@ -14,7 +15,7 @@ module IF_ID_Buffer #(
 );
 
     always_ff @(posedge i_clk) begin
-        if (i_reset) begin
+        if (i_reset || i_flush) begin
             o_PC          <= '0;
             o_instruction <= '0;
         end else if (i_enable) begin

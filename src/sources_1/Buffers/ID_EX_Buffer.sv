@@ -28,6 +28,7 @@ module ID_EX_Buffer #(
     input  logic                  i_MemToReg,
     input  logic                  i_Branch,
     input  logic                  i_Jump,
+    input  logic                  i_JumpReg,
     // outputs (mirror)
     output logic [     NB_PC-1:0] o_PC,
     output logic [DATA_WIDTH-1:0] o_read_data_1,
@@ -45,7 +46,8 @@ module ID_EX_Buffer #(
     output logic                  o_MemWrite,
     output logic                  o_MemToReg,
     output logic                  o_Branch,
-    output logic                  o_Jump
+    output logic                  o_Jump,
+    output logic                  o_JumpReg
 );
 
     always_ff @(posedge i_clk) begin
@@ -67,6 +69,7 @@ module ID_EX_Buffer #(
             o_MemToReg    <= '0;
             o_Branch      <= '0;
             o_Jump        <= '0;
+            o_JumpReg     <= '0;
         end else if (i_enable) begin
             o_PC          <= i_PC;
             o_read_data_1 <= i_read_data_1;
@@ -85,6 +88,7 @@ module ID_EX_Buffer #(
             o_MemToReg    <= i_MemToReg;
             o_Branch      <= i_Branch;
             o_Jump        <= i_Jump;
+            o_JumpReg     <= i_JumpReg;
         end
     end
 

@@ -31,11 +31,18 @@ module RISCV #(
     assign w_if_id_enable = i_if_enable & w_IF_ID_Write;
 
     // ----------------------------------------------------------------
+    // Branch / Jump control (resolved in MEM stage)
+    // ----------------------------------------------------------------
+    logic w_PCSrc;
+    logic [NB_PC-1:0] w_PCBranch;
+    logic w_if_id_flush;
+
+    // ----------------------------------------------------------------
     // IF stage
     // ----------------------------------------------------------------
-    logic [  NB_PC-1:0] w_if_pc_inc;
+    logic [NB_PC-1:0] w_if_pc_inc;
     logic [NB_INST-1:0] w_if_instruction;
-    logic [  NB_PC-1:0] w_if_pc;
+    logic [NB_PC-1:0] w_if_pc;
 
     InstructionFetch #(
         .NB_PC  (NB_PC),
@@ -45,8 +52,8 @@ module RISCV #(
         .i_clk         (i_clk),
         .i_reset       (i_reset),
         .i_enable      (w_if_pc_enable),
-        .i_PCSrc       (1'b0),
-        .i_PCBranch    ('0),
+        .i_PCSrc       (w_PCSrc),
+        .i_PCBranch    (w_PCBranch),
         .i_mem_wr      (i_mem_wr),
         .i_mem_addr    (i_mem_addr),
         .i_mem_data    (i_mem_data),
@@ -68,7 +75,8 @@ module RISCV #(
         .i_clk        (i_clk),
         .i_reset      (i_reset),
         .i_enable     (w_if_id_enable),
-        .i_PC         (w_if_pc),             //VER: capaz va w_if_pc
+        .i_flush      (w_if_id_flush),
+        .i_PC         (w_if_pc),
         .i_instruction(w_if_instruction),
         .o_PC         (w_if_id_pc),
         .o_instruction(w_if_id_instruction)
@@ -91,6 +99,7 @@ module RISCV #(
     logic                  w_id_MemToReg;
     logic                  w_id_Branch;
     logic                  w_id_Jump;
+    logic                  w_id_JumpReg;
 
     // WB feedback wires (declared forward; driven by WB stage below)
     logic [DATA_WIDTH-1:0] w_wb_write_data;
@@ -121,7 +130,8 @@ module RISCV #(
         .o_MemWrite   (w_id_MemWrite),
         .o_MemToReg   (w_id_MemToReg),
         .o_Branch     (w_id_Branch),
-        .o_Jump       (w_id_Jump)
+        .o_Jump       (w_id_Jump),
+        .o_JumpReg    (w_id_JumpReg)
     );
 
     // rs1/rs2 extracted from the IF/ID instruction for hazard detection and ID/EX buffering
@@ -150,6 +160,7 @@ module RISCV #(
     logic                  w_id_ex_MemToReg;
     logic                  w_id_ex_Branch;
     logic                  w_id_ex_Jump;
+    logic                  w_id_ex_JumpReg;
 
     ID_EX_Buffer #(
         .NB_PC     (NB_PC),
@@ -159,7 +170,7 @@ module RISCV #(
         .i_clk        (i_clk),
         .i_reset      (i_reset),
         .i_enable     (1'b1),
-        .i_flush      (w_ID_EX_flush),
+        .i_flush      (w_ID_EX_flush | w_PCSrc),
         .i_PC         (w_if_id_pc),
         .i_read_data_1(w_id_read_data_1),
         .i_read_data_2(w_id_read_data_2),
@@ -177,6 +188,7 @@ module RISCV #(
         .i_MemToReg   (w_id_MemToReg),
         .i_Branch     (w_id_Branch),
         .i_Jump       (w_id_Jump),
+        .i_JumpReg    (w_id_JumpReg),
         .o_PC         (w_id_ex_pc),
         .o_read_data_1(w_id_ex_read_data_1),
         .o_read_data_2(w_id_ex_read_data_2),
@@ -193,8 +205,19 @@ module RISCV #(
         .o_MemWrite   (w_id_ex_MemWrite),
         .o_MemToReg   (w_id_ex_MemToReg),
         .o_Branch     (w_id_ex_Branch),
-        .o_Jump       (w_id_ex_Jump)
+        .o_Jump       (w_id_ex_Jump),
+        .o_JumpReg    (w_id_ex_JumpReg)
     );
+
+    // ----------------------------------------------------------------
+    // Branch / Jump computation
+    // ----------------------------------------------------------------
+    logic [NB_PC-1:0] w_branch_target;
+    logic [NB_PC-1:0] w_id_ex_pc_plus_1;
+
+    // B/J immediates are byte offsets; PC is word-addressed → divide by 4 (arithmetic shift right 2)
+    assign w_branch_target   = w_id_ex_pc + NB_PC'($signed(w_id_ex_immediate) >>> 2);
+    assign w_id_ex_pc_plus_1 = w_id_ex_pc + NB_PC'(1);
 
     // ----------------------------------------------------------------
     // Hazard detection unit
@@ -271,41 +294,52 @@ module RISCV #(
     logic                  w_ex_mem_zero;
     logic [DATA_WIDTH-1:0] w_ex_mem_read_data_2;
     logic [           2:0] w_ex_mem_funct3;
+    logic [     NB_PC-1:0] w_ex_mem_branch_target;
+    logic [     NB_PC-1:0] w_ex_mem_pc_plus_1;
     logic                  w_ex_mem_MemRead;
     logic                  w_ex_mem_MemWrite;
     logic                  w_ex_mem_MemToReg;
     logic                  w_ex_mem_Branch;
     logic                  w_ex_mem_Jump;
+    logic                  w_ex_mem_JumpReg;
 
     EX_MEM_Buffer #(
         .DATA_WIDTH(DATA_WIDTH),
-        .NB_REG    (NB_REG)
+        .NB_REG    (NB_REG),
+        .NB_PC     (NB_PC)
     ) EX_MEM (
-        .i_clk        (i_clk),
-        .i_reset      (i_reset),
-        .i_enable     (1'b1),
-        .i_alu_result (w_ex_alu_result),
-        .i_zero       (w_ex_zero),
-        .i_read_data_2(w_ex_read_data_2),
-        .i_rd         (w_ex_rd),
-        .i_funct3     (w_id_ex_funct3),
-        .i_RegWrite   (w_id_ex_RegWrite),
-        .i_MemRead    (w_id_ex_MemRead),
-        .i_MemWrite   (w_id_ex_MemWrite),
-        .i_MemToReg   (w_id_ex_MemToReg),
-        .i_Branch     (w_id_ex_Branch),
-        .i_Jump       (w_id_ex_Jump),
-        .o_alu_result (w_ex_mem_alu_result),
-        .o_zero       (w_ex_mem_zero),
-        .o_read_data_2(w_ex_mem_read_data_2),
-        .o_rd         (w_ex_mem_rd),
-        .o_funct3     (w_ex_mem_funct3),
-        .o_RegWrite   (w_ex_mem_RegWrite),
-        .o_MemRead    (w_ex_mem_MemRead),
-        .o_MemWrite   (w_ex_mem_MemWrite),
-        .o_MemToReg   (w_ex_mem_MemToReg),
-        .o_Branch     (w_ex_mem_Branch),
-        .o_Jump       (w_ex_mem_Jump)
+        .i_clk          (i_clk),
+        .i_reset        (i_reset),
+        .i_enable       (1'b1),
+        .i_flush        (1'b0),
+        .i_alu_result   (w_ex_alu_result),
+        .i_zero         (w_ex_zero),
+        .i_read_data_2  (w_ex_read_data_2),
+        .i_rd           (w_ex_rd),
+        .i_funct3       (w_id_ex_funct3),
+        .i_branch_target(w_branch_target),
+        .i_pc_plus_1    (w_id_ex_pc_plus_1),
+        .i_RegWrite     (w_id_ex_RegWrite),
+        .i_MemRead      (w_id_ex_MemRead),
+        .i_MemWrite     (w_id_ex_MemWrite),
+        .i_MemToReg     (w_id_ex_MemToReg),
+        .i_Branch       (w_id_ex_Branch),
+        .i_Jump         (w_id_ex_Jump),
+        .i_JumpReg      (w_id_ex_JumpReg),
+        .o_alu_result   (w_ex_mem_alu_result),
+        .o_zero         (w_ex_mem_zero),
+        .o_read_data_2  (w_ex_mem_read_data_2),
+        .o_rd           (w_ex_mem_rd),
+        .o_funct3       (w_ex_mem_funct3),
+        .o_branch_target(w_ex_mem_branch_target),
+        .o_pc_plus_1    (w_ex_mem_pc_plus_1),
+        .o_RegWrite     (w_ex_mem_RegWrite),
+        .o_MemRead      (w_ex_mem_MemRead),
+        .o_MemWrite     (w_ex_mem_MemWrite),
+        .o_MemToReg     (w_ex_mem_MemToReg),
+        .o_Branch       (w_ex_mem_Branch),
+        .o_Jump         (w_ex_mem_Jump),
+        .o_JumpReg      (w_ex_mem_JumpReg)
     );
 
     // ----------------------------------------------------------------
@@ -331,11 +365,14 @@ module RISCV #(
     // ----------------------------------------------------------------
     logic [DATA_WIDTH-1:0] w_mem_wb_alu_result;
     logic [DATA_WIDTH-1:0] w_mem_wb_mem_read_data;
+    logic [     NB_PC-1:0] w_mem_wb_pc_plus_1;
     logic                  w_mem_wb_MemToReg;
+    logic                  w_mem_wb_Jump;
 
     MEM_WB_Buffer #(
         .DATA_WIDTH(DATA_WIDTH),
-        .NB_REG    (NB_REG)
+        .NB_REG    (NB_REG),
+        .NB_PC     (NB_PC)
     ) MEM_WB (
         .i_clk          (i_clk),
         .i_reset        (i_reset),
@@ -343,13 +380,17 @@ module RISCV #(
         .i_alu_result   (w_ex_mem_alu_result),
         .i_mem_read_data(w_mem_read_data),
         .i_rd           (w_ex_mem_rd),
+        .i_pc_plus_1    (w_ex_mem_pc_plus_1),
         .i_RegWrite     (w_ex_mem_RegWrite),
         .i_MemToReg     (w_ex_mem_MemToReg),
+        .i_Jump         (w_ex_mem_Jump),
         .o_alu_result   (w_mem_wb_alu_result),
         .o_mem_read_data(w_mem_wb_mem_read_data),
         .o_rd           (w_mem_wb_rd),
+        .o_pc_plus_1    (w_mem_wb_pc_plus_1),
         .o_RegWrite     (w_mem_wb_RegWrite),
-        .o_MemToReg     (w_mem_wb_MemToReg)
+        .o_MemToReg     (w_mem_wb_MemToReg),
+        .o_Jump         (w_mem_wb_Jump)
     );
 
     // ----------------------------------------------------------------
@@ -357,17 +398,29 @@ module RISCV #(
     // ----------------------------------------------------------------
     WriteBackStage #(
         .DATA_WIDTH(DATA_WIDTH),
-        .NB_REG    (NB_REG)
+        .NB_REG    (NB_REG),
+        .NB_PC     (NB_PC)
     ) WB (
         .i_alu_result   (w_mem_wb_alu_result),
         .i_mem_read_data(w_mem_wb_mem_read_data),
         .i_rd           (w_mem_wb_rd),
+        .i_pc_plus_1    (w_mem_wb_pc_plus_1),
         .i_RegWrite     (w_mem_wb_RegWrite),
         .i_MemToReg     (w_mem_wb_MemToReg),
+        .i_Jump         (w_mem_wb_Jump),
         .o_write_data   (w_wb_write_data),
         .o_write_reg    (w_wb_write_reg),
         .o_RegWrite     (w_wb_RegWrite)
     );
+
+    // ----------------------------------------------------------------
+    // Branch & Jump resolution (from EX/MEM outputs)
+    // ----------------------------------------------------------------
+    // BEQ: taken when zero=1 (funct3[0]=0), BNE: taken when zero=0 (funct3[0]=1)
+    // So: taken = zero XOR funct3[0]
+    assign w_PCSrc = (w_ex_mem_Branch & (w_ex_mem_zero ^ w_ex_mem_funct3[0])) | w_ex_mem_Jump;
+    assign w_PCBranch = w_ex_mem_JumpReg ? w_ex_mem_alu_result : w_ex_mem_branch_target;
+    assign w_if_id_flush = w_PCSrc;
 
     assign o_tx = 1'b1;
 
