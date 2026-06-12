@@ -11,6 +11,7 @@ module ID_EX_Buffer #(
     input  logic                  i_flush,
     // data signals
     input  logic [     NB_PC-1:0] i_PC,
+    input  logic [     NB_PC-1:0] i_pc_plus_1,
     input  logic [DATA_WIDTH-1:0] i_read_data_1,
     input  logic [DATA_WIDTH-1:0] i_read_data_2,
     input  logic [DATA_WIDTH-1:0] i_immediate,
@@ -31,6 +32,7 @@ module ID_EX_Buffer #(
     input  logic                  i_JumpReg,
     // outputs (mirror)
     output logic [     NB_PC-1:0] o_PC,
+    output logic [     NB_PC-1:0] o_pc_plus_1,
     output logic [DATA_WIDTH-1:0] o_read_data_1,
     output logic [DATA_WIDTH-1:0] o_read_data_2,
     output logic [DATA_WIDTH-1:0] o_immediate,
@@ -53,6 +55,7 @@ module ID_EX_Buffer #(
     always_ff @(posedge i_clk) begin
         if (i_reset || i_flush) begin
             o_PC          <= '0;
+            o_pc_plus_1   <= '0;
             o_read_data_1 <= '0;
             o_read_data_2 <= '0;
             o_immediate   <= '0;
@@ -72,6 +75,7 @@ module ID_EX_Buffer #(
             o_JumpReg     <= '0;
         end else if (i_enable) begin
             o_PC          <= i_PC;
+            o_pc_plus_1   <= i_pc_plus_1;
             o_read_data_1 <= i_read_data_1;
             o_read_data_2 <= i_read_data_2;
             o_immediate   <= i_immediate;

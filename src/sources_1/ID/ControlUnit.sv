@@ -29,7 +29,7 @@ module ControlUnit #(
         o_JumpReg  = 1'b0;
         o_ImmSrc   = 3'b000;
 
-        unique case (i_opcode)
+        case (i_opcode)
             7'b0110011: begin  // R-type
                 o_RegWrite = 1'b1;
                 o_ALUOp    = 2'b10;
