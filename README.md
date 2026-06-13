@@ -122,8 +122,8 @@ Located in `src/sim_1/`. Run them via the `run-tests` skill or the CLI snippet b
 - **Language:** SystemVerilog (`.sv`). Use `logic`, `always_ff`, `always_comb` — never plain `always`.
 - **Port naming:** `i_` inputs, `o_` outputs, `w_` internal wires, `r_` registers/state.
 - **Parameterization:** all widths (PC, instruction, data) are parameters; default 32-bit. No hardcoded widths.
-- **PC increment:** adds 1 (word-addressed), not 4 — the PC indexes words, not bytes.
-- **Instruction memory:** word-addressed array of `2^NB_ADDR` 32-bit words; loaded via `$readmemh("program.hex")` at simulation start; zeroed on reset (program loaded via UART in hardware).
+- **PC increment:** adds 4 (byte-addressed), aligned with Patterson & Hennessy — the PC indexes bytes. Branch/jump immediates are byte offsets added to the PC directly (no shift). See [`docs/CONSIDERACIONES.md`](docs/CONSIDERACIONES.md).
+- **Instruction memory:** array of `2^NB_ADDR` 32-bit words; fetch indexes with `PC >> 2`. Loaded via `$readmemh("program.hex")` at simulation start; zeroed on reset (program loaded via UART in hardware).
 
 ---
 

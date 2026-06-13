@@ -16,7 +16,7 @@ module EX_MEM_Buffer #(
     input  logic [    NB_REG-1:0] i_rd,
     input  logic [           2:0] i_funct3,
     input  logic [     NB_PC-1:0] i_branch_target,
-    input  logic [     NB_PC-1:0] i_pc_plus_1,
+    input  logic [     NB_PC-1:0] i_pc_plus_4,
     // control
     input  logic                  i_RegWrite,
     input  logic                  i_MemRead,
@@ -32,7 +32,7 @@ module EX_MEM_Buffer #(
     output logic [    NB_REG-1:0] o_rd,
     output logic [           2:0] o_funct3,
     output logic [     NB_PC-1:0] o_branch_target,
-    output logic [     NB_PC-1:0] o_pc_plus_1,
+    output logic [     NB_PC-1:0] o_pc_plus_4,
     output logic                  o_RegWrite,
     output logic                  o_MemRead,
     output logic                  o_MemWrite,
@@ -50,7 +50,7 @@ module EX_MEM_Buffer #(
             o_rd            <= '0;
             o_funct3        <= '0;
             o_branch_target <= '0;
-            o_pc_plus_1     <= '0;
+            o_pc_plus_4     <= '0;
             o_RegWrite      <= '0;
             o_MemRead       <= '0;
             o_MemWrite      <= '0;
@@ -65,7 +65,7 @@ module EX_MEM_Buffer #(
             o_rd            <= i_rd;
             o_funct3        <= i_funct3;
             o_branch_target <= i_branch_target;
-            o_pc_plus_1     <= i_pc_plus_1;
+            o_pc_plus_4     <= i_pc_plus_4;
             o_RegWrite      <= i_RegWrite;
             o_MemRead       <= i_MemRead;
             o_MemWrite      <= i_MemWrite;

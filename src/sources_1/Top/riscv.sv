@@ -66,7 +66,7 @@ module RISCV #(
     // IF/ID buffer
     // ----------------------------------------------------------------
     logic [  NB_PC-1:0] w_if_id_pc;
-    logic [  NB_PC-1:0] w_if_id_pc_plus_1;
+    logic [  NB_PC-1:0] w_if_id_pc_plus_4;
     logic [NB_INST-1:0] w_if_id_instruction;
 
     IF_ID_Buffer #(
@@ -78,10 +78,10 @@ module RISCV #(
         .i_enable     (w_if_id_enable),
         .i_flush      (w_if_id_flush),
         .i_PC         (w_if_pc),
-        .i_pc_plus_1  (w_if_pc_inc),
+        .i_pc_plus_4  (w_if_pc_inc),
         .i_instruction(w_if_instruction),
         .o_PC         (w_if_id_pc),
-        .o_pc_plus_1  (w_if_id_pc_plus_1),
+        .o_pc_plus_4  (w_if_id_pc_plus_4),
         .o_instruction(w_if_id_instruction)
     );
 
@@ -147,7 +147,7 @@ module RISCV #(
     // ID/EX buffer
     // ----------------------------------------------------------------
     logic [     NB_PC-1:0] w_id_ex_pc;
-    logic [     NB_PC-1:0] w_id_ex_pc_plus_1;
+    logic [     NB_PC-1:0] w_id_ex_pc_plus_4;
     logic [DATA_WIDTH-1:0] w_id_ex_read_data_1;
     logic [DATA_WIDTH-1:0] w_id_ex_read_data_2;
     logic [DATA_WIDTH-1:0] w_id_ex_immediate;
@@ -176,7 +176,7 @@ module RISCV #(
         .i_enable     (1'b1),
         .i_flush      (w_ID_EX_flush | w_PCSrc),
         .i_PC         (w_if_id_pc),
-        .i_pc_plus_1  (w_if_id_pc_plus_1),
+        .i_pc_plus_4  (w_if_id_pc_plus_4),
         .i_read_data_1(w_id_read_data_1),
         .i_read_data_2(w_id_read_data_2),
         .i_immediate  (w_id_immediate),
@@ -195,7 +195,7 @@ module RISCV #(
         .i_Jump       (w_id_Jump),
         .i_JumpReg    (w_id_JumpReg),
         .o_PC         (w_id_ex_pc),
-        .o_pc_plus_1  (w_id_ex_pc_plus_1),
+        .o_pc_plus_4  (w_id_ex_pc_plus_4),
         .o_read_data_1(w_id_ex_read_data_1),
         .o_read_data_2(w_id_ex_read_data_2),
         .o_immediate  (w_id_ex_immediate),
@@ -238,7 +238,7 @@ module RISCV #(
     logic [DATA_WIDTH-1:0] w_ex_read_data_2;
     logic [    NB_REG-1:0] w_ex_rd;
     logic [     NB_PC-1:0] w_ex_branch_target;
-    logic [     NB_PC-1:0] w_ex_pc_plus_1;
+    logic [     NB_PC-1:0] w_ex_pc_plus_4;
 
     logic [           1:0] w_ForwardA;
     logic [           1:0] w_ForwardB;
@@ -273,7 +273,7 @@ module RISCV #(
         .i_read_data_2      (w_id_ex_read_data_2),
         .i_immediate        (w_id_ex_immediate),
         .i_pc               (w_id_ex_pc),
-        .i_pc_plus_1        (w_id_ex_pc_plus_1),
+        .i_pc_plus_4        (w_id_ex_pc_plus_4),
         .i_rd               (w_id_ex_rd),
         .i_funct3           (w_id_ex_funct3),
         .i_funct7_5         (w_id_ex_funct7_5),
@@ -288,7 +288,7 @@ module RISCV #(
         .o_read_data_2      (w_ex_read_data_2),
         .o_rd               (w_ex_rd),
         .o_branch_target    (w_ex_branch_target),
-        .o_pc_plus_1        (w_ex_pc_plus_1)
+        .o_pc_plus_4        (w_ex_pc_plus_4)
     );
 
     // ----------------------------------------------------------------
@@ -298,7 +298,7 @@ module RISCV #(
     logic [DATA_WIDTH-1:0] w_ex_mem_read_data_2;
     logic [           2:0] w_ex_mem_funct3;
     logic [     NB_PC-1:0] w_ex_mem_branch_target;
-    logic [     NB_PC-1:0] w_ex_mem_pc_plus_1;
+    logic [     NB_PC-1:0] w_ex_mem_pc_plus_4;
     logic                  w_ex_mem_MemRead;
     logic                  w_ex_mem_MemWrite;
     logic                  w_ex_mem_MemToReg;
@@ -321,7 +321,7 @@ module RISCV #(
         .i_rd           (w_ex_rd),
         .i_funct3       (w_id_ex_funct3),
         .i_branch_target(w_ex_branch_target),
-        .i_pc_plus_1    (w_ex_pc_plus_1),
+        .i_pc_plus_4    (w_ex_pc_plus_4),
         .i_RegWrite     (w_id_ex_RegWrite),
         .i_MemRead      (w_id_ex_MemRead),
         .i_MemWrite     (w_id_ex_MemWrite),
@@ -335,7 +335,7 @@ module RISCV #(
         .o_rd           (w_ex_mem_rd),
         .o_funct3       (w_ex_mem_funct3),
         .o_branch_target(w_ex_mem_branch_target),
-        .o_pc_plus_1    (w_ex_mem_pc_plus_1),
+        .o_pc_plus_4    (w_ex_mem_pc_plus_4),
         .o_RegWrite     (w_ex_mem_RegWrite),
         .o_MemRead      (w_ex_mem_MemRead),
         .o_MemWrite     (w_ex_mem_MemWrite),
@@ -376,7 +376,7 @@ module RISCV #(
     // ----------------------------------------------------------------
     logic [DATA_WIDTH-1:0] w_mem_wb_alu_result;
     logic [DATA_WIDTH-1:0] w_mem_wb_mem_read_data;
-    logic [     NB_PC-1:0] w_mem_wb_pc_plus_1;
+    logic [     NB_PC-1:0] w_mem_wb_pc_plus_4;
     logic                  w_mem_wb_MemToReg;
     logic                  w_mem_wb_Jump;
 
@@ -391,14 +391,14 @@ module RISCV #(
         .i_alu_result   (w_ex_mem_alu_result),
         .i_mem_read_data(w_mem_read_data),
         .i_rd           (w_ex_mem_rd),
-        .i_pc_plus_1    (w_ex_mem_pc_plus_1),
+        .i_pc_plus_4    (w_ex_mem_pc_plus_4),
         .i_RegWrite     (w_ex_mem_RegWrite),
         .i_MemToReg     (w_ex_mem_MemToReg),
         .i_Jump         (w_ex_mem_Jump),
         .o_alu_result   (w_mem_wb_alu_result),
         .o_mem_read_data(w_mem_wb_mem_read_data),
         .o_rd           (w_mem_wb_rd),
-        .o_pc_plus_1    (w_mem_wb_pc_plus_1),
+        .o_pc_plus_4    (w_mem_wb_pc_plus_4),
         .o_RegWrite     (w_mem_wb_RegWrite),
         .o_MemToReg     (w_mem_wb_MemToReg),
         .o_Jump         (w_mem_wb_Jump)
@@ -415,7 +415,7 @@ module RISCV #(
         .i_alu_result   (w_mem_wb_alu_result),
         .i_mem_read_data(w_mem_wb_mem_read_data),
         .i_rd           (w_mem_wb_rd),
-        .i_pc_plus_1    (w_mem_wb_pc_plus_1),
+        .i_pc_plus_4    (w_mem_wb_pc_plus_4),
         .i_RegWrite     (w_mem_wb_RegWrite),
         .i_MemToReg     (w_mem_wb_MemToReg),
         .i_Jump         (w_mem_wb_Jump),

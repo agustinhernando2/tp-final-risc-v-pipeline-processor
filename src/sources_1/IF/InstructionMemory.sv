@@ -30,6 +30,7 @@ module InstructionMemory #(
         end
     end
 
-    assign o_instruction = r_mem[i_PC[NB_ADDR-1:0]];
+    // PC is byte-addressed; instructions are word-aligned → index = PC >> 2
+    assign o_instruction = r_mem[i_PC[NB_ADDR+1:2]];
 
 endmodule

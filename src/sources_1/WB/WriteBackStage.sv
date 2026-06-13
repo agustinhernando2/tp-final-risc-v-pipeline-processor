@@ -8,7 +8,7 @@ module WriteBackStage #(
     input  logic [DATA_WIDTH-1:0] i_alu_result,
     input  logic [DATA_WIDTH-1:0] i_mem_read_data,
     input  logic [    NB_REG-1:0] i_rd,
-    input  logic [     NB_PC-1:0] i_pc_plus_1,
+    input  logic [     NB_PC-1:0] i_pc_plus_4,
     input  logic                  i_RegWrite,
     input  logic                  i_MemToReg,
     input  logic                  i_Jump,
@@ -29,12 +29,12 @@ module WriteBackStage #(
         .o_out(w_alu_or_mem)
     );
 
-    // Mux 2: JAL/JALR override with PC+1 as the return address written to rd
+    // Mux 2: JAL/JALR override with PC+4 as the return address written to rd
     mux1_2 #(
         .DATA_WIDTH(DATA_WIDTH)
     ) u_mux_jump (
         .i_a  (w_alu_or_mem),
-        .i_b  (i_pc_plus_1),
+        .i_b  (i_pc_plus_4),
         .i_sel(i_Jump),
         .o_out(o_write_data)
     );

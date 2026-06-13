@@ -332,8 +332,8 @@ module tb_branch;
     // The 32-bit immediate has: imm[3]=1, all others 0.
     // So output = 32'h00000008 = 8.
     //
-    // With our corrected branch_target = PC + (imm >>> 2) = PC + (8 >> 2) = PC + 2.
-    // If the jal is at PC=0, branch_target = 2. That means it jumps to instruction 2. ✓
+    // branch_target = PC + imm = 0 + 8 = byte 8 = instruction word 2 (PC>>2).
+    // If the jal is at PC=0, branch_target = 8. That means it jumps to instruction 2. ✓
 
     localparam [NB_INST-1:0] JAL_X1_P8 = 32'h008000EF;  // jal x1, +8 bytes (= skip 1 instruction)
     localparam [NB_INST-1:0] NOP = 32'h00000013;  // addi x0, x0, 0
@@ -358,7 +358,7 @@ module tb_branch;
         //   3: bne  x1, x2, -4   # back to PC 2 if x1 != x2
         //   4: addi x3, x0, 99   # x3 = 99 (only after loop exits)
         //
-        // BNE -4 bytes: with imm_div4 = -1, jumps back 1 word = PC 2. ✓
+        // BNE -4 bytes: target = PC(byte 12) + (-4) = byte 8 = instruction 2. ✓
         // ==============================================================
         $display("--- BNE Loop Test ---");
 
@@ -386,13 +386,13 @@ module tb_branch;
         // ==============================================================
         // TEST 2: JAL — skip one instruction, check target and fallthrough
         // Program:
-        //   0: jal x1, +8    # jump to PC 2; x1 = 1 (= PC+1)
+        //   0: jal x1, +8    # jump to instr 2; x1 = 4 (= PC+4)
         //   1: addi x5, x0, 1   # skipped
         //   2: addi x5, x0, 2   # x5 = 2
         //   3: addi x4, x0, 77  # x4 = 77 (continues normally)
         //
-        // JAL +8 bytes = +2 instructions. With imm_div4 = +2, target = PC(0)+2 = 2. ✓
-        // Return address x1 = PC+1 = 0+1 = 1.
+        // JAL +8 bytes = +2 instructions. target = PC(0)+8 = byte 8 = instruction 2. ✓
+        // Return address x1 = PC+4 = 0+4 = 4.
         // ==============================================================
         $display("\n--- JAL Test ---");
 
@@ -412,7 +412,7 @@ module tb_branch;
         i_if_enable = 1;
         repeat (50) tick;
 
-        check("JAL: x1 == 1 (return addr)", DUT.ID.RF.r_RF[1], 32'd1);
+        check("JAL: x1 == 4 (return addr)", DUT.ID.RF.r_RF[1], 32'd4);
         check("JAL: x5 == 2 (not skipped)", DUT.ID.RF.r_RF[5], 32'd2);
         check("JAL: x4 == 77", DUT.ID.RF.r_RF[4], 32'd77);
 

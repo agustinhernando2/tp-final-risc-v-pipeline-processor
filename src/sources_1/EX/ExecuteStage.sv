@@ -10,7 +10,7 @@ module ExecuteStage #(
     input  logic [DATA_WIDTH-1:0] i_read_data_2,
     input  logic [DATA_WIDTH-1:0] i_immediate,
     input  logic [     NB_PC-1:0] i_pc,
-    input  logic [     NB_PC-1:0] i_pc_plus_1,
+    input  logic [     NB_PC-1:0] i_pc_plus_4,
     input  logic [    NB_REG-1:0] i_rd,
     input  logic [           2:0] i_funct3,
     input  logic                  i_funct7_5,
@@ -27,14 +27,14 @@ module ExecuteStage #(
     output logic [DATA_WIDTH-1:0] o_read_data_2,
     output logic [    NB_REG-1:0] o_rd,
     output logic [     NB_PC-1:0] o_branch_target,
-    output logic [     NB_PC-1:0] o_pc_plus_1
+    output logic [     NB_PC-1:0] o_pc_plus_4
 );
 
     logic [    DATA_WIDTH-1:0] w_fwd_a;
     logic [    DATA_WIDTH-1:0] w_fwd_b;
     logic [    DATA_WIDTH-1:0] w_alu_b;
     logic [ALU_CTRL_WIDTH-1:0] w_alu_ctrl;
-    logic [         NB_PC-1:0] w_imm_word_offset;
+    logic [         NB_PC-1:0] w_branch_offset;
 
     // ForwardA: 00=reg file, 01=MEM/WB write-back, 10=EX/MEM ALU result
     mux2_4 #(
@@ -90,20 +90,21 @@ module ExecuteStage #(
         .o_zero     (o_zero)
     );
 
-    assign o_read_data_2     = w_fwd_b;
-    assign o_rd              = i_rd;
+    assign o_read_data_2   = w_fwd_b;
+    assign o_rd            = i_rd;
 
-    // B/J immediates are byte offsets; PC is word-addressed → divide by 4
-    assign w_imm_word_offset = NB_PC'($signed(i_immediate) >>> 2);
+    // B/J immediates are already byte offsets (ImmGen embeds the "shift left 1");
+    // PC is byte-addressed → add the offset directly, no shift.
+    assign w_branch_offset = i_immediate;
 
     Adder #(
         .DATA_WIDTH(NB_PC)
     ) u_branch_adder (
         .i_operand_a(i_pc),
-        .i_operand_b(w_imm_word_offset),
+        .i_operand_b(w_branch_offset),
         .o_sum      (o_branch_target)
     );
 
-    assign o_pc_plus_1 = i_pc_plus_1;
+    assign o_pc_plus_4 = i_pc_plus_4;
 
 endmodule

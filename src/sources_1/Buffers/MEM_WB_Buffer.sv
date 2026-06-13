@@ -12,7 +12,7 @@ module MEM_WB_Buffer #(
     input  logic [DATA_WIDTH-1:0] i_alu_result,
     input  logic [DATA_WIDTH-1:0] i_mem_read_data,
     input  logic [    NB_REG-1:0] i_rd,
-    input  logic [     NB_PC-1:0] i_pc_plus_1,
+    input  logic [     NB_PC-1:0] i_pc_plus_4,
     // control
     input  logic                  i_RegWrite,
     input  logic                  i_MemToReg,
@@ -21,7 +21,7 @@ module MEM_WB_Buffer #(
     output logic [DATA_WIDTH-1:0] o_alu_result,
     output logic [DATA_WIDTH-1:0] o_mem_read_data,
     output logic [    NB_REG-1:0] o_rd,
-    output logic [     NB_PC-1:0] o_pc_plus_1,
+    output logic [     NB_PC-1:0] o_pc_plus_4,
     output logic                  o_RegWrite,
     output logic                  o_MemToReg,
     output logic                  o_Jump
@@ -32,7 +32,7 @@ module MEM_WB_Buffer #(
             o_alu_result    <= '0;
             o_mem_read_data <= '0;
             o_rd            <= '0;
-            o_pc_plus_1     <= '0;
+            o_pc_plus_4     <= '0;
             o_RegWrite      <= '0;
             o_MemToReg      <= '0;
             o_Jump          <= '0;
@@ -40,7 +40,7 @@ module MEM_WB_Buffer #(
             o_alu_result    <= i_alu_result;
             o_mem_read_data <= i_mem_read_data;
             o_rd            <= i_rd;
-            o_pc_plus_1     <= i_pc_plus_1;
+            o_pc_plus_4     <= i_pc_plus_4;
             o_RegWrite      <= i_RegWrite;
             o_MemToReg      <= i_MemToReg;
             o_Jump          <= i_Jump;

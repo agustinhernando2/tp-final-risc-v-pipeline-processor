@@ -21,10 +21,10 @@ operacion  destino, fuente1, fuente2/inmediato
   — es un truco muy usado para "tirar" un resultado.
 - **inmediato**: un número constante que viene metido *dentro* de la instrucción
   (no en un registro).
-- Importante en este diseño: el **PC cuenta palabras, no bytes**. Por eso los
-  saltos se miden en "+1 instrucción", no en "+4 bytes" como en el RISC-V real.
-  Esto está documentado en [`CLAUDE.md`](../CLAUDE.md) ("PC increment unit: Adds
-  1, not 4").
+- En este diseño el **PC cuenta bytes** (igual que el RISC-V real y el libro de
+  Patterson & Hennessy): incrementa de a 4 y los saltos se miden en bytes
+  (`+4 bytes` = una instrucción más adelante). La memoria de instrucciones se
+  indexa con `PC >> 2`. Ver [`docs/CONSIDERACIONES.md`](CONSIDERACIONES.md).
 
 ---
 
@@ -75,9 +75,9 @@ beq  x5, x6, ETIQUETA   # Branch if EQual:     salta si x5 == x6
 bne  x5, x6, ETIQUETA   # Branch if Not Equal: salta si x5 != x6
 ```
 
-El tercer operando es **a cuántas instrucciones saltar** (relativo a la posición
-del propio branch). En este diseño, como el PC cuenta palabras, `+2` significa
-"saltá 2 instrucciones más adelante".
+El tercer operando es el **desplazamiento en bytes** (relativo a la posición del
+propio branch). Como el PC cuenta bytes, `+8` significa "saltá 8 bytes
+= 2 instrucciones más adelante".
 
 ### Ejemplo: contar de 0 a 3 con un loop
 
@@ -118,30 +118,30 @@ termine. Por convención se usa `x1` (llamado `ra`, *return address*) para eso.
 ### Ejemplo: llamar a una subrutina y volver (tu programa de prueba)
 
 ```asm
-        jal  x1, +2       # (1) saltar +2 instrucciones; x1 = retorno = PC+1
-        addi x5, x0, 1    # (2) SE SALTEA (nunca se ejecuta)
-SUBR:   addi x5, x0, 2    # (3) destino del salto; x5 = 2
-        jalr x0, x1, 0    # (4) volver usando x1
-        addi x5, x0, 3    # (5) se reanuda acá; x5 = 3
+        jal  x1, +3       # (0) saltar a SUBR; x1 = retorno = PC+1 = 1
+        addi x5, x0, 3    # (1) se reanuda ACÁ al volver; x5 = 3
+        # ... fin del programa principal      (2)
+SUBR:   addi x5, x0, 2    # (3) cuerpo de la subrutina; x5 = 2
+        jalr x0, x1, 0    # (4) volver usando x1 (a la dirección 1)
 ```
 
 Paso a paso, suponiendo que el `jal` está en la dirección (palabra) **0**:
 
 | PC | Instrucción         | Qué pasa                                                        |
 |----|---------------------|----------------------------------------------------------------|
-| 0  | `jal x1, +2`        | Guarda `x1 = 0 + 1 = 1` (retorno). Salta a `0 + 2 = 2`.        |
-| 1  | `addi x5, x0, 1`    | **Salteada** (el PC pasó de 0 a 2, nunca pisó la 1).           |
-| 2  | `addi x5, x0, 2`    | `x5 = 2`. Sigue normal a la 3.                                  |
-| 3  | `jalr x0, x1, 0`    | Vuelve: salta a `x1 + 0 = 1`... ¡pero ojo! → ver abajo.        |
+| 0  | `jal x1, +3`        | Guarda `x1 = 0 + 1 = 1` (retorno). Salta a `0 + 3 = 3`.        |
+| 3  | `addi x5, x0, 2`    | `x5 = 2`. Sigue normal a la 4.                                  |
+| 4  | `jalr x0, x1, 0`    | Vuelve: salta a `x1 + 0 = 1`.                                   |
+| 1  | `addi x5, x0, 3`    | Se reanuda el programa principal; `x5 = 3`.                     |
+| 2  | *(fin)*             | Termina.                                                        |
 
-Acá está la clave del ejemplo: **`x1` guarda `1`** (la instrucción *siguiente* al
-`jal`, que era el `addi x5,x0,1` salteado). El `jalr` salta a la dirección `1`,
-con lo cual ahora **sí** se ejecuta esa instrucción y *después* la 2 otra vez,
-hasta caer en la 4 (`addi x5,x0,3`).
+Acá está la clave: **`x1` guarda `1`** (la instrucción *siguiente* al `jal`, que es
+la continuación del programa principal). Por eso la subrutina tiene que vivir
+**fuera** del flujo lineal (al final, alcanzable solo por el salto): si la metés
+justo en medio, el retorno te haría re-ejecutar código y entrarías en un loop.
 
-> 💡 Por eso el resultado final del enunciado es **`x5 = 3`** y **`x1` = dirección
-> de retorno** (la instrucción inmediatamente posterior al `jal`). El "link" es
-> literalmente "PC del jal + 1".
+> 💡 Resultado final: **`x5 = 3`** y **`x1` = dirección de retorno** (la instrucción
+> inmediatamente posterior al `jal`). El "link" es literalmente "PC del jal + 1".
 
 La idea importante a quedarse: **`jal` = saltar + dejar una miga de pan (`x1`)
 para poder volver.**
