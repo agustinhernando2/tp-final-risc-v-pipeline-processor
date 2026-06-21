@@ -74,10 +74,6 @@ module tb_ControlUnit;
         opcode = 7'b0110111;
         check("LUI", 1, 1, 2'b11, 0, 0, 0, 0, 0, 3'b011);
 
-        // AUIPC   (opcode=0010111): RegWrite=1 ALUSrc=1 ALUOp=00 MemRead=0 MemWrite=0 MemToReg=0 Branch=0 Jump=0 ImmSrc=011
-        opcode = 7'b0010111;
-        check("AUIPC", 1, 1, 2'b00, 0, 0, 0, 0, 0, 3'b011);
-
         // JAL     (opcode=1101111): RegWrite=1 ALUSrc=1 ALUOp=00 MemRead=0 MemWrite=0 MemToReg=0 Branch=0 Jump=1 ImmSrc=100
         opcode = 7'b1101111;
         check("JAL", 1, 1, 2'b00, 0, 0, 0, 0, 1, 3'b100);

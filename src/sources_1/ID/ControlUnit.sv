@@ -65,12 +65,6 @@ module ControlUnit #(
                 o_ALUOp    = 2'b11;
                 o_ImmSrc   = 3'b011;
             end
-            7'b0010111: begin  // AUIPC
-                o_RegWrite = 1'b1;
-                o_ALUSrc   = 1'b1;
-                o_ALUOp    = 2'b00;
-                o_ImmSrc   = 3'b011;
-            end
             7'b1101111: begin  // JAL
                 o_RegWrite = 1'b1;
                 o_ALUSrc   = 1'b1;
