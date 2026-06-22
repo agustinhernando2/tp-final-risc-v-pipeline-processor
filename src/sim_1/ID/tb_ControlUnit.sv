@@ -70,9 +70,9 @@ module tb_ControlUnit;
         opcode = 7'b1100011;
         check("Branch", 0, 0, 2'b01, 0, 0, 0, 1, 0, 3'b010);
 
-        // LUI     (opcode=0110111): RegWrite=1 ALUSrc=1 ALUOp=11 MemRead=0 MemWrite=0 MemToReg=0 Branch=0 Jump=0 ImmSrc=011
+        // LUI     (opcode=0110111): RegWrite=1 ALUSrc=1 ALUOp=00 MemRead=0 MemWrite=0 MemToReg=0 Branch=0 Jump=0 ImmSrc=011
         opcode = 7'b0110111;
-        check("LUI", 1, 1, 2'b11, 0, 0, 0, 0, 0, 3'b011);
+        check("LUI", 1, 1, 2'b00, 0, 0, 0, 0, 0, 3'b011);
 
         // JAL     (opcode=1101111): RegWrite=1 ALUSrc=1 ALUOp=00 MemRead=0 MemWrite=0 MemToReg=0 Branch=0 Jump=1 ImmSrc=100
         opcode = 7'b1101111;

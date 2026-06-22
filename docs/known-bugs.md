@@ -2,12 +2,17 @@
 
 ## BUG-001 — LUI produce resultado incorrecto cuando `imm[14:12] != 000`
 
-**Estado:** abierto  
+**Estado:** ✅ resuelto  
 **Etapa afectada:** EX (`ALUControl` + `ALU`)  
 **Archivos involucrados:**
 - [`src/sources_1/ID/ControlUnit.sv`](../src/sources_1/ID/ControlUnit.sv) — origen del problema
-- [`src/sources_1/EX/ALUControl.sv`](../src/sources_1/EX/ALUControl.sv) — donde se manifiesta
-- [`src/sources_1/EX/ALU.sv`](../src/sources_1/EX/ALU.sv) — ejecuta la operación incorrecta
+- [`src/sources_1/EX/ALUControl.sv`](../src/sources_1/EX/ALUControl.sv) — donde se manifestaba
+- [`src/sources_1/EX/ALU.sv`](../src/sources_1/EX/ALU.sv) — ejecutaba la operación incorrecta
+
+> **Resumen de la corrección:** `ControlUnit` asigna a LUI `ALUOp=00` (ADD
+> forzado) y emite una señal `LUI=1` que se propaga por `ID_EX_Buffer` hasta
+> `ExecuteStage`, donde un mux fuerza el operando A a `0`. La ALU calcula
+> `0 + imm = imm` para cualquier inmediato. Detalle abajo en "Solución".
 
 ---
 
@@ -87,18 +92,25 @@ si ese registro vale `0`.
 | 110 | ORI | no |
 | 111 | ANDI | no |
 
-### Solución propuesta
+### Solución (aplicada)
 
-Cambiar `ControlUnit` para que LUI use `ALUOp = 2'b00` (ADD forzado, igual que
-`lw`/`sw`) y agregar un mux en EX que fuerce el operando A a `0` cuando la
-instrucción es LUI, dejando `result = 0 + imm = imm`. Opciones concretas:
+Se implementó la opción 1: señal de control dedicada `LUI`.
 
-1. Señal `i_LUI` nueva en `ExecuteStage` que seleccione `0` como operando A antes
-   de la ALU. **Mínimo cambio.**
-2. Nuevo valor de `ALUOp` que pase directamente el operando B a la salida, sin
-   depender de `funct3`.
+1. `ControlUnit` (`src/sources_1/ID/ControlUnit.sv`): LUI usa `ALUOp = 2'b00`
+   (ADD forzado, igual que `lw`/`sw`) y activa la nueva salida `o_LUI = 1'b1`.
+   Con `ALUOp=00` el `ALUControl` selecciona ADD sin mirar `funct3`, eliminando
+   la dependencia de `imm[14:12]`.
+2. La señal `LUI` se propaga `InstructionDecode → ID_EX_Buffer → ExecuteStage`.
+3. `ExecuteStage` (`src/sources_1/EX/ExecuteStage.sv`): un `mux1_2` (`u_mux_alu_a`)
+   fuerza el operando A de la ALU a `0` cuando `i_LUI=1`. Así
+   `result = 0 + imm = imm` para cualquier inmediato.
 
-**Testbench:** [`src/sim_1/EX/tb_lui_bug.sv`](../src/sim_1/EX/tb_lui_bug.sv)
+Resultado: `rd = {imm[31:12], 12'b0}` siempre, sin importar `imm[14:12]` ni el
+contenido del register file.
+
+**Testbench (regresión):** [`src/sim_1/EX/tb_lui_bug.sv`](../src/sim_1/EX/tb_lui_bug.sv)
+ejercita `ExecuteStage` con `i_LUI=1` para los 8 valores de `imm[14:12]` y un
+operando A basura; verifica `alu_result == imm` en todos los casos.
 
 ---
 
@@ -120,40 +132,26 @@ O con el script del proyecto (si ya existe `sim_out/`):
 bash .claude/skills/run-tests/scripts/run_one.sh tb_lui_bug
 ```
 
-### Salida esperada y cómo interpretarla
+### Salida esperada (tras la corrección)
 
 ```
---- Grupo 1: ALUControl con imm[14:12] como funct3 (ALUOp=11) ---
-  PASS  ALUCtrl [imm[14:12]=000] = ADD (0000) -- correcto para LUI
-  FAIL  ALUCtrl [imm[14:12]=001]: esperado ADD (0000), obtenido 0010 -- LUI producira resultado incorrecto
-  FAIL  ALUCtrl [imm[14:12]=101]: esperado ADD (0000), obtenido 0110 -- LUI producira resultado incorrecto
-  ...
---- Grupo 2: resultado de lui x5, 0x12345 (imm[14:12]=101 -> SRLI) ---
-  FAIL  lui x5,0x12345: expected 0x12345000, got 0xdeadbeef
---- Grupo 3: resultado de lui x1, 0x00001 (imm[14:12]=001 -> SLLI) ---
-  FAIL  lui x1,0x00001: expected 0x00001000, got 0xcafebabe
---- Grupo 4: lui x5, 0x00100 (imm[14:12]=000 -> ADD, pero operand_a != 0) ---
-  FAIL  lui x5,0x00100 con rs1_garbage=5: expected 0x00100000, got 0x00100005
+--- BUG-001 regresion: LUI produce {imm[31:12], 12'b0} para cualquier imm ---
+  PASS  lui x5,0x12345: 0x12345000
+  PASS  lui x1,0x00001: 0x00001000
+  PASS  lui x5,0x00100: 0x00100000
+  PASS  lui imm[14:12]=010: 0xabcd2000
+  PASS  lui imm[14:12]=011: 0x55553000
+  PASS  lui imm[14:12]=100: 0x0f0f4000
+  PASS  lui imm[14:12]=110: 0x80006000
+  PASS  lui imm[14:12]=111: 0xfffff000
 
---- Results: 1 passed, 10 failed ---
-SOME TESTS FAILED
+--- Results: 8 passed, 0 failed ---
+ALL TESTS PASSED
 ```
 
-**Grupo 1** prueba `ALUControl` directamente: para cada valor posible de
-`imm[14:12]` (los 3 bits bajos del inmediato de 20 bits), verifica si la operación
-seleccionada es ADD. Solo `000` pasa; los otros 7 valores seleccionan SLLI, SLTI,
-SRLI, etc.
-
-El campo `obtenido XXXX` es el código binario de `ALUCtrl`:
-`0000`=ADD, `0010`=SLLI, `0011`=SLTI, `0100`=SLTIU, `0101`=XORI,
-`0110`=SRLI, `1000`=ORI, `1001`=ANDI.
-
-**Grupos 2 y 3** ejercen la ALU completa con inmediatos reales:
-- `got 0xdeadbeef` en el Grupo 2: SRLI desplazó 0 posiciones → devolvió el
-  operando A (`0xDEAD_BEEF`) en lugar del inmediato `0x12345000`.
-- `got 0xcafebabe` en el Grupo 3: SLLI desplazó 0 posiciones → devolvió el
-  operando A (`0xCAFE_BABE`) en lugar de `0x00001000`.
-
-**Grupo 4** muestra que incluso cuando `imm[14:12]=000` (ADD es la operación
-correcta), el resultado sigue siendo incorrecto porque el operando A no es cero:
-`0x00100000 + 5 = 0x00100005`.
+Cada caso ejecuta `ExecuteStage` con `i_LUI=1`, un operando A basura (para
+confirmar que se ignora) y el inmediato U-type ya formado (`{imm[31:12], 12'b0}`).
+Se verifica que `alu_result == inmediato` en los 8 valores posibles de
+`imm[14:12]`, incluyendo los 7 que antes seleccionaban una operación ALU
+incorrecta (SLLI, SLTI, …) y el caso `000` donde el operando A no nulo antes
+contaminaba la suma.

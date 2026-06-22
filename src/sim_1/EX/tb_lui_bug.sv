@@ -1,54 +1,78 @@
 `timescale 1ns / 1ps
 
-// BUG-001: LUI usa ALUOp=2'b11 (modo I-type), por lo que ALUControl
-// decodifica inst[14:12] = imm[14:12] como funct3 y elige una operacion
-// ALU arbitraria segun el valor del inmediato.
-// Solo cuando imm[14:12]=000 se elige ADD, y aun asi el operando A es un
-// registro indexado por imm[19:15] (no necesariamente cero).
+// BUG-001 (RESUELTO): regresion de LUI.
 //
-// Este testbench verifica dos cosas:
-//   1. Que ALUControl selecciona ADD (unica operacion correcta para LUI)
-//      solo cuando funct3 = 000, y falla para cualquier otro imm[14:12].
-//   2. Que la ALU produce el resultado incorrecto en casos concretos.
+// Fix: ControlUnit asigna ALUOp=00 (ADD forzado) + o_LUI=1 para LUI, y
+// ExecuteStage usa o_LUI para forzar el operando A a 0. Asi la ALU calcula
+// 0 + imm = imm para cualquier valor de imm[14:12], sin depender de los bits
+// que en U-type no son un funct3 real.
+//
+// Este testbench ejercita ExecuteStage con i_LUI=1 y verifica que el
+// resultado de la ALU sea siempre el inmediato, incluyendo los casos que
+// antes fallaban (imm[14:12] != 000) y el caso donde operand_a (basura) != 0.
 
 module tb_lui_bug;
 
     localparam DATA_WIDTH = 32;
+    localparam NB_PC = 32;
+    localparam NB_REG = 5;
     localparam ALU_CTRL_WIDTH = 4;
 
-    localparam ADD = 4'b0000;
+    // ExecuteStage inputs
+    logic [DATA_WIDTH-1:0] read_data_1;
+    logic [DATA_WIDTH-1:0] read_data_2;
+    logic [DATA_WIDTH-1:0] immediate;
+    logic [     NB_PC-1:0] pc;
+    logic [     NB_PC-1:0] pc_plus_4;
+    logic [    NB_REG-1:0] rd;
+    logic [           2:0] funct3;
+    logic                  funct7_5;
+    logic                  ALUSrc;
+    logic [           1:0] ALUOp;
+    logic                  LUI;
+    logic [           1:0] ForwardA;
+    logic [           1:0] ForwardB;
+    logic [DATA_WIDTH-1:0] ex_mem_alu_result;
+    logic [DATA_WIDTH-1:0] wb_write_data;
 
-    logic [               1:0] alu_op;
-    logic [               2:0] funct3;
-    logic                      funct7_5;
-    logic [ALU_CTRL_WIDTH-1:0] alu_ctrl;
+    // ExecuteStage outputs
+    logic [DATA_WIDTH-1:0] alu_result;
+    logic                  zero;
+    logic [DATA_WIDTH-1:0] o_read_data_2;
+    logic [    NB_REG-1:0] o_rd;
+    logic [     NB_PC-1:0] branch_target;
+    logic [     NB_PC-1:0] o_pc_plus_4;
 
-    logic [    DATA_WIDTH-1:0] operand_a;
-    logic [    DATA_WIDTH-1:0] operand_b;
-    logic [    DATA_WIDTH-1:0] alu_result;
-    logic                      alu_zero;
+    int                    pass_count;
+    int                    fail_count;
 
-    int                        pass_count;
-    int                        fail_count;
-
-    ALUControl #(
-        .ALU_CTRL_WIDTH(ALU_CTRL_WIDTH)
-    ) DUT_CTRL (
-        .i_ALUOp   (alu_op),
-        .i_funct3  (funct3),
-        .i_funct7_5(funct7_5),
-        .o_ALUCtrl (alu_ctrl)
-    );
-
-    ALU #(
+    ExecuteStage #(
         .DATA_WIDTH    (DATA_WIDTH),
+        .NB_PC         (NB_PC),
+        .NB_REG        (NB_REG),
         .ALU_CTRL_WIDTH(ALU_CTRL_WIDTH)
-    ) DUT_ALU (
-        .i_operand_a(operand_a),
-        .i_operand_b(operand_b),
-        .i_ALUCtrl  (alu_ctrl),
-        .o_result   (alu_result),
-        .o_zero     (alu_zero)
+    ) DUT (
+        .i_read_data_1      (read_data_1),
+        .i_read_data_2      (read_data_2),
+        .i_immediate        (immediate),
+        .i_pc               (pc),
+        .i_pc_plus_4        (pc_plus_4),
+        .i_rd               (rd),
+        .i_funct3           (funct3),
+        .i_funct7_5         (funct7_5),
+        .i_ALUSrc           (ALUSrc),
+        .i_ALUOp            (ALUOp),
+        .i_LUI              (LUI),
+        .i_ForwardA         (ForwardA),
+        .i_ForwardB         (ForwardB),
+        .i_ex_mem_alu_result(ex_mem_alu_result),
+        .i_wb_write_data    (wb_write_data),
+        .o_alu_result       (alu_result),
+        .o_zero             (zero),
+        .o_read_data_2      (o_read_data_2),
+        .o_rd               (o_rd),
+        .o_branch_target    (branch_target),
+        .o_pc_plus_4        (o_pc_plus_4)
     );
 
     task automatic check(input string label, input logic [DATA_WIDTH-1:0] got, expected);
@@ -61,118 +85,52 @@ module tb_lui_bug;
         end
     endtask
 
-    // LUI necesita siempre ADD (4'b0000). Falla si ALUControl elige otra cosa.
-    task automatic check_alu_ctrl(input string label);
-        if (alu_ctrl === ADD) begin
-            $display("  PASS  ALUCtrl [%s] = ADD (0000) -- correcto para LUI", label);
-            pass_count++;
-        end else begin
-            $display(
-                "  FAIL  ALUCtrl [%s]: esperado ADD (0000), obtenido %04b -- LUI producira resultado incorrecto",
-                label, alu_ctrl);
-            fail_count++;
-        end
+    // Ejecuta una instruccion LUI rd, imm: setea las señales fijas de LUI,
+    // un operando A basura (que debe ignorarse) y comprueba alu_result == imm.
+    task automatic run_lui(input string label, input logic [DATA_WIDTH-1:0] imm,
+                           input logic [2:0] f3, input logic [DATA_WIDTH-1:0] garbage);
+        ALUSrc      = 1'b1;
+        ALUOp       = 2'b00;
+        LUI         = 1'b1;
+        ForwardA    = 2'b00;
+        ForwardB    = 2'b00;
+        funct3      = f3;  // en U-type estos son imm[14:12], la ALU debe ignorarlos
+        funct7_5    = imm[18];  // imm[30] del valor original; irrelevante para el fix
+        immediate   = imm;
+        read_data_1 = garbage;  // rs1 basura: ExecuteStage debe forzarlo a 0
+        #1;
+        check(label, alu_result, imm);
     endtask
 
     initial begin
-        pass_count = 0;
-        fail_count = 0;
-        operand_a  = '0;
-        operand_b  = '0;
-        alu_op     = 2'b11;  // ControlUnit asigna ALUOp=11 a LUI
-        funct7_5   = 1'b0;
+        pass_count        = 0;
+        fail_count        = 0;
+        read_data_2       = '0;
+        pc                = '0;
+        pc_plus_4         = '0;
+        rd                = 5'd5;
+        ex_mem_alu_result = '0;
+        wb_write_data     = '0;
 
-        // ----------------------------------------------------------------
-        // Grupo 1: ALUControl con cada valor posible de imm[14:12]
-        // Para LUI, inst[14:12] = imm[14:12], no un funct3 real.
-        // Solo 3'b000 produce ADD; todo lo demas es incorrecto.
-        // ----------------------------------------------------------------
-        $display("--- Grupo 1: ALUControl con imm[14:12] como funct3 (ALUOp=11) ---");
+        $display("--- BUG-001 regresion: LUI produce {imm[31:12], 12'b0} para cualquier imm ---");
 
-        funct3 = 3'b000;
-        #1;
-        check_alu_ctrl("imm[14:12]=000");  // ADD -- unico caso que da ADD
+        // lui x5, 0x12345 -> imm[14:12]=101 (antes elegia SRLI). Ahora correcto.
+        run_lui("lui x5,0x12345", 32'h1234_5000, 3'b101, 32'hDEAD_BEEF);
 
-        funct3 = 3'b001;
-        #1;
-        check_alu_ctrl("imm[14:12]=001");  // SLLI
+        // lui x1, 0x00001 -> imm[14:12]=001 (antes SLLI). Ahora correcto.
+        run_lui("lui x1,0x00001", 32'h0000_1000, 3'b001, 32'hCAFE_BABE);
 
-        funct3 = 3'b010;
-        #1;
-        check_alu_ctrl("imm[14:12]=010");  // SLTI
+        // lui x5, 0x00100 -> imm[14:12]=000 (ADD) pero operand_a basura != 0.
+        // Antes daba imm + basura; ahora operand_a se fuerza a 0.
+        run_lui("lui x5,0x00100", 32'h0010_0000, 3'b000, 32'h0000_0005);
 
-        funct3 = 3'b011;
-        #1;
-        check_alu_ctrl("imm[14:12]=011");  // SLTIU
+        // Cobertura de los 8 valores posibles de imm[14:12].
+        run_lui("lui imm[14:12]=010", 32'hABCD_2000, 3'b010, 32'h1111_1111);
+        run_lui("lui imm[14:12]=011", 32'h5555_3000, 3'b011, 32'h2222_2222);
+        run_lui("lui imm[14:12]=100", 32'h0F0F_4000, 3'b100, 32'h3333_3333);
+        run_lui("lui imm[14:12]=110", 32'h8000_6000, 3'b110, 32'h4444_4444);
+        run_lui("lui imm[14:12]=111", 32'hFFFF_F000, 3'b111, 32'h5555_5555);
 
-        funct3 = 3'b100;
-        #1;
-        check_alu_ctrl("imm[14:12]=100");  // XORI
-
-        funct3 = 3'b101;
-        #1;
-        check_alu_ctrl("imm[14:12]=101");  // SRLI
-
-        funct3 = 3'b110;
-        #1;
-        check_alu_ctrl("imm[14:12]=110");  // ORI
-
-        funct3 = 3'b111;
-        #1;
-        check_alu_ctrl("imm[14:12]=111");  // ANDI
-
-        // ----------------------------------------------------------------
-        // Grupo 2: resultado concreto de `lui x5, 0x12345`
-        //
-        // imm = 0x12345 -> imm[14:12] = 3'b101, imm[30] = 0
-        // ALUControl: ALUOp=11, funct3=101, funct7_5=0 -> SRLI (4'b0110)
-        // operand_b = ImmediateExtend({0x12345, 12'b0}) = 0x12345000
-        // operand_b[4:0] = 0 -> SRLI shifts by 0 -> result = operand_a
-        // Esperado: 0x12345000   Real: operand_a (basura)
-        // ----------------------------------------------------------------
-        $display("--- Grupo 2: resultado de lui x5, 0x12345 (imm[14:12]=101 -> SRLI) ---");
-        funct3    = 3'b101;
-        funct7_5  = 1'b0;
-        operand_a = 32'hDEAD_BEEF;  // valor basura del register file
-        operand_b = 32'h1234_5000;  // inmediato correcto de LUI
-        #1;
-        check("lui x5,0x12345", alu_result, 32'h1234_5000);
-
-        // ----------------------------------------------------------------
-        // Grupo 3: resultado concreto de `lui x1, 0x00001`
-        //
-        // imm = 0x00001 -> imm[14:12] = 3'b001, imm[30] = 0
-        // ALUControl: ALUOp=11, funct3=001, funct7_5=0 -> SLLI (4'b0010)
-        // operand_b = 0x00001000, operand_b[4:0] = 0 -> shifts by 0
-        // result = operand_a (basura), no el inmediato
-        // ----------------------------------------------------------------
-        $display("--- Grupo 3: resultado de lui x1, 0x00001 (imm[14:12]=001 -> SLLI) ---");
-        funct3    = 3'b001;
-        funct7_5  = 1'b0;
-        operand_a = 32'hCAFE_BABE;
-        operand_b = 32'h0000_1000;
-        #1;
-        check("lui x1,0x00001", alu_result, 32'h0000_1000);
-
-        // ----------------------------------------------------------------
-        // Grupo 4: caso donde imm[14:12]=000 (ADD) pero operand_a != 0
-        // Demuestra que incluso ADD es incorrecto si rs1_garbage != 0.
-        //
-        // Ejemplo: lui x5, 0x00100  (imm[14:12] = 3'b000, imm=0x00100)
-        // ADD: result = operand_a + operand_b = rs1_garbage + 0x00100000
-        // Esperado: 0x00100000
-        // ----------------------------------------------------------------
-        $display("--- Grupo 4: lui x5, 0x00100 (imm[14:12]=000 -> ADD, pero operand_a != 0) ---");
-        funct3    = 3'b000;
-        funct7_5  = 1'b0;
-        operand_a = 32'h0000_0005;  // rs1 basura != 0
-        operand_b = 32'h0010_0000;  // 0x00100 << 12
-        #1;
-        check("lui x5,0x00100 con rs1_garbage=5", alu_result, 32'h0010_0000);
-
-        // ----------------------------------------------------------------
-        // Summary
-        // ----------------------------------------------------------------
         $display("\n--- Results: %0d passed, %0d failed ---", pass_count, fail_count);
         if (fail_count == 0) $display("ALL TESTS PASSED");
         else $display("SOME TESTS FAILED");

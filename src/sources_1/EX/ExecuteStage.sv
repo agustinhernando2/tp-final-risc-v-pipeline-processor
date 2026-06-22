@@ -16,6 +16,7 @@ module ExecuteStage #(
     input  logic                  i_funct7_5,
     input  logic                  i_ALUSrc,
     input  logic [           1:0] i_ALUOp,
+    input  logic                  i_LUI,
     // forwarding inputs
     input  logic [           1:0] i_ForwardA,
     input  logic [           1:0] i_ForwardB,
@@ -32,9 +33,9 @@ module ExecuteStage #(
 
     logic [    DATA_WIDTH-1:0] w_fwd_a;
     logic [    DATA_WIDTH-1:0] w_fwd_b;
+    logic [    DATA_WIDTH-1:0] w_alu_a;
     logic [    DATA_WIDTH-1:0] w_alu_b;
     logic [ALU_CTRL_WIDTH-1:0] w_alu_ctrl;
-    logic [         NB_PC-1:0] w_branch_offset;
 
     // ForwardA: 00=reg file, 01=MEM/WB write-back, 10=EX/MEM ALU result
     mux2_4 #(
@@ -70,6 +71,17 @@ module ExecuteStage #(
         .o_out(w_alu_b)
     );
 
+    // LUI mux: force operand A to 0 so the ALU computes 0 + imm = imm.
+    // U-type has no rs1; inst[19:15] are immediate bits, so w_fwd_a is garbage.
+    mux1_2 #(
+        .DATA_WIDTH(DATA_WIDTH)
+    ) u_mux_alu_a (
+        .i_a  (w_fwd_a),
+        .i_b  ('0),
+        .i_sel(i_LUI),
+        .o_out(w_alu_a)
+    );
+
     ALUControl #(
         .ALU_CTRL_WIDTH(ALU_CTRL_WIDTH)
     ) u_alu_control (
@@ -83,25 +95,23 @@ module ExecuteStage #(
         .DATA_WIDTH(DATA_WIDTH),
         .ALU_CTRL_WIDTH(ALU_CTRL_WIDTH)
     ) u_alu (
-        .i_operand_a(w_fwd_a),
+        .i_operand_a(w_alu_a),
         .i_operand_b(w_alu_b),
         .i_ALUCtrl  (w_alu_ctrl),
         .o_result   (o_alu_result),
         .o_zero     (o_zero)
     );
 
-    assign o_read_data_2   = w_fwd_b;
-    assign o_rd            = i_rd;
+    assign o_read_data_2 = w_fwd_b;
+    assign o_rd          = i_rd;
 
     // B/J immediates are already byte offsets (ImmGen embeds the "shift left 1");
     // PC is byte-addressed → add the offset directly, no shift.
-    assign w_branch_offset = i_immediate;
-
     Adder #(
         .DATA_WIDTH(NB_PC)
     ) u_branch_adder (
         .i_operand_a(i_pc),
-        .i_operand_b(w_branch_offset),
+        .i_operand_b(i_immediate),
         .o_sum      (o_branch_target)
     );
 

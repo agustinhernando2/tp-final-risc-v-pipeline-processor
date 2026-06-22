@@ -33,6 +33,7 @@ module tb_ExecuteStage;
         .i_funct7_5         (i_funct7_5),
         .i_ALUSrc           (i_ALUSrc),
         .i_ALUOp            (i_ALUOp),
+        .i_LUI              (1'b0),
         .i_ForwardA         (2'b00),
         .i_ForwardB         (2'b00),
         .i_ex_mem_alu_result('0),

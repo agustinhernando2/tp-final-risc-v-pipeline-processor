@@ -29,7 +29,8 @@ module instructionDecode #(
     output logic                  o_MemToReg,
     output logic                  o_Branch,
     output logic                  o_Jump,
-    output logic                  o_JumpReg
+    output logic                  o_JumpReg,
+    output logic                  o_LUI
 );
 
     logic [NB_REG-1:0] w_rs1, w_rs2;
@@ -54,6 +55,7 @@ module instructionDecode #(
         .o_Branch  (o_Branch),
         .o_Jump    (o_Jump),
         .o_JumpReg (o_JumpReg),
+        .o_LUI     (o_LUI),
         .o_ImmSrc  (w_ImmSrc)
     );
 

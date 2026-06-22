@@ -103,6 +103,7 @@ module RISCV #(
     logic                  w_id_Branch;
     logic                  w_id_Jump;
     logic                  w_id_JumpReg;
+    logic                  w_id_LUI;
 
     // WB feedback wires (declared forward; driven by WB stage below)
     logic [DATA_WIDTH-1:0] w_wb_write_data;
@@ -134,7 +135,8 @@ module RISCV #(
         .o_MemToReg   (w_id_MemToReg),
         .o_Branch     (w_id_Branch),
         .o_Jump       (w_id_Jump),
-        .o_JumpReg    (w_id_JumpReg)
+        .o_JumpReg    (w_id_JumpReg),
+        .o_LUI        (w_id_LUI)
     );
 
     // rs1/rs2 extracted from the IF/ID instruction for hazard detection and ID/EX buffering
@@ -165,6 +167,7 @@ module RISCV #(
     logic                  w_id_ex_Branch;
     logic                  w_id_ex_Jump;
     logic                  w_id_ex_JumpReg;
+    logic                  w_id_ex_LUI;
 
     ID_EX_Buffer #(
         .NB_PC     (NB_PC),
@@ -194,6 +197,7 @@ module RISCV #(
         .i_Branch     (w_id_Branch),
         .i_Jump       (w_id_Jump),
         .i_JumpReg    (w_id_JumpReg),
+        .i_LUI        (w_id_LUI),
         .o_PC         (w_id_ex_pc),
         .o_pc_plus_4  (w_id_ex_pc_plus_4),
         .o_read_data_1(w_id_ex_read_data_1),
@@ -212,7 +216,8 @@ module RISCV #(
         .o_MemToReg   (w_id_ex_MemToReg),
         .o_Branch     (w_id_ex_Branch),
         .o_Jump       (w_id_ex_Jump),
-        .o_JumpReg    (w_id_ex_JumpReg)
+        .o_JumpReg    (w_id_ex_JumpReg),
+        .o_LUI        (w_id_ex_LUI)
     );
 
     // ----------------------------------------------------------------
@@ -279,6 +284,7 @@ module RISCV #(
         .i_funct7_5         (w_id_ex_funct7_5),
         .i_ALUSrc           (w_id_ex_ALUSrc),
         .i_ALUOp            (w_id_ex_ALUOp),
+        .i_LUI              (w_id_ex_LUI),
         .i_ForwardA         (w_ForwardA),
         .i_ForwardB         (w_ForwardB),
         .i_ex_mem_alu_result(w_ex_mem_alu_result),
