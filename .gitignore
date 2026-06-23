@@ -27,4 +27,8 @@ xsim.dir
 *.pb
 *wdb
 
+# Vivado batch build artifacts (Stage 9a UART loopback)
+build_uart/
+clockInfo.txt
+
 TODO.md
