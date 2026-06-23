@@ -152,11 +152,11 @@ del inmediato/ALUSrc) del libro:
 Cableado real (`ExecuteStage.sv`):
 
 - `u_mux_fwd_a`: `i_a`=`i_read_data_1`, `i_b`=`i_wb_write_data` (MEM/WB),
-  `i_c`=`i_ex_mem_alu_result` (EX/MEM), sel=`i_ForwardA`. (líneas 34–43)
-- `u_mux_fwd_b`: análogo con `i_read_data_2`, sel=`i_ForwardB`. (líneas 46–55)
+  `i_c`=`i_ex_mem_alu_result` (EX/MEM), sel=`i_ForwardA`.
+- `u_mux_fwd_b`: análogo con `i_read_data_2`, sel=`i_ForwardB`.
 - El operando B forwardeado (`w_fwd_b`) pasa luego por el mux `ALUSrc`
   (inmediato vs. registro) y también se exporta como `o_read_data_2`, de modo que
-  **los stores escriben el valor forwardeado** (líneas 57–65, 87). Esto cubre la
+  **los stores escriben el valor forwardeado**. Esto cubre la
   *Elaboration* de la p. 302 sobre forwarding a stores.
 
 Fuentes de los datos (en `riscv.sv`, instancia `EX`):
