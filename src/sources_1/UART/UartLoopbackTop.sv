@@ -7,7 +7,7 @@
 // pipeline ni de la unidad de debug (Stage 9b). Reenvía por TX cada byte que
 // llega por RX (eco), y muestra el último byte recibido en los 8 LEDs.
 //
-// Prueba esperada (con tools/uart_echo_test.py): se envía una secuencia de
+// Prueba esperada (con .claude/skills/program-board/scripts/uart_echo_test.py): se envía una secuencia de
 // bytes al puerto serie y se verifica que vuelvan idénticos.
 //
 // Manejo de solapamiento: si llega un byte mientras el TX todavía está
@@ -24,7 +24,7 @@
 // =============================================================================
 module UartLoopbackTop #(
     parameter int CLK      = 100_000_000,  // reloj de la Basys-3 [Hz]
-    parameter int BAUDRATE = 19200,        // tasa de baudios
+    parameter int BAUDRATE = 19200,        // baud rate
     parameter int NB_DATA  = 8             // bits por byte
 ) (
     input logic i_clk,    // reloj 100 MHz (W5)

@@ -19,12 +19,12 @@
 //   STOP  -> espera el stop bit completo y pulsa o_rx_done_tick
 // =============================================================================
 module UartRx #(
-    parameter int DBIT    = 8,   // bits de datos por trama
+    parameter int DBIT    = 8,
     parameter int SB_TICK = 16   // ticks por bit (= OVERSAMPLE del baud gen)
 ) (
-    input logic i_clk,    // reloj del sistema
-    input logic i_reset,  // reset sincronico activo-alto
-    input logic i_rx,     // linea serie de entrada (reposo en 1)
+    input logic i_clk,
+    input logic i_reset,
+    input logic i_rx,
     input logic i_s_tick, // tick del BaudRateGenerator
 
     output logic            o_rx_done_tick,  // pulso de 1 ciclo: byte recibido
@@ -96,10 +96,10 @@ module UartRx #(
                 if (i_s_tick) begin
                     if (r_tick_cnt == (SB_TICK - 1)) begin
                         w_next_tick_cnt = '0;
-                        // Entra el bit nuevo por el MSB (recepcion LSB-first).
+                        //  1 bit + 7 bits descartando el LBS del registro de desplazamiento
                         w_next_shiftreg = {i_rx, r_shiftreg[DBIT-1:1]};
                         if (r_data_cnt == (DBIT - 1)) begin
-                            w_next_state = STOP;  // ya entraron todos los bits
+                            w_next_state = STOP;
                         end else begin
                             w_next_data_cnt = r_data_cnt + 1'b1;
                         end

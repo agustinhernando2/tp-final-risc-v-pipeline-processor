@@ -27,8 +27,12 @@ xsim.dir
 *.pb
 *wdb
 
-# Vivado batch build artifacts (Stage 9a UART loopback)
-build_uart/
+# Vivado batch build artifacts (skill program-board)
+build_out/
 clockInfo.txt
+
+# Python
+__pycache__/
+*.pyc
 
 TODO.md
