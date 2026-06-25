@@ -30,7 +30,11 @@ module instructionDecode #(
     output logic                  o_Branch,
     output logic                  o_Jump,
     output logic                  o_JumpReg,
-    output logic                  o_LUI
+    output logic                  o_LUI,
+    output logic                  o_Halt,
+    // debug read port (DebugUnit register dump)
+    input  logic [    NB_REG-1:0] i_dbg_reg_addr,
+    output logic [DATA_WIDTH-1:0] o_dbg_reg_data
 );
 
     logic [NB_REG-1:0] w_rs1, w_rs2;
@@ -56,6 +60,7 @@ module instructionDecode #(
         .o_Jump    (o_Jump),
         .o_JumpReg (o_JumpReg),
         .o_LUI     (o_LUI),
+        .o_Halt    (o_Halt),
         .o_ImmSrc  (w_ImmSrc)
     );
 
@@ -71,7 +76,9 @@ module instructionDecode #(
         .i_write_data(i_write_data),
         .i_regWrite  (i_regWrite),
         .o_read_reg_1(o_read_data_1),
-        .o_read_reg_2(o_read_data_2)
+        .o_read_reg_2(o_read_data_2),
+        .i_dbg_addr  (i_dbg_reg_addr),
+        .o_dbg_data  (o_dbg_reg_data)
     );
 
     ImmediateExtend #(

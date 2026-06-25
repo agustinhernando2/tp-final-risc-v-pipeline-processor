@@ -25,6 +25,7 @@ module EX_MEM_Buffer #(
     input  logic                  i_Branch,
     input  logic                  i_Jump,
     input  logic                  i_JumpReg,
+    input  logic                  i_Halt,
     // outputs (mirror)
     output logic [DATA_WIDTH-1:0] o_alu_result,
     output logic                  o_zero,
@@ -39,7 +40,8 @@ module EX_MEM_Buffer #(
     output logic                  o_MemToReg,
     output logic                  o_Branch,
     output logic                  o_Jump,
-    output logic                  o_JumpReg
+    output logic                  o_JumpReg,
+    output logic                  o_Halt
 );
 
     always_ff @(posedge i_clk) begin
@@ -58,6 +60,7 @@ module EX_MEM_Buffer #(
             o_Branch        <= '0;
             o_Jump          <= '0;
             o_JumpReg       <= '0;
+            o_Halt          <= '0;
         end else if (i_enable) begin
             o_alu_result    <= i_alu_result;
             o_zero          <= i_zero;
@@ -73,6 +76,7 @@ module EX_MEM_Buffer #(
             o_Branch        <= i_Branch;
             o_Jump          <= i_Jump;
             o_JumpReg       <= i_JumpReg;
+            o_Halt          <= i_Halt;
         end
     end
 

@@ -14,12 +14,10 @@ module tb_branch;
 
     logic               i_clk;
     logic               i_reset;
-    logic               i_rx;
     logic               i_if_enable;
     logic               i_mem_wr;
     logic [NB_ADDR-1:0] i_mem_addr;
     logic [NB_INST-1:0] i_mem_data;
-    logic               o_tx;
 
     RISCV #(
         .NB_PC     (NB_PC),
@@ -28,14 +26,19 @@ module tb_branch;
         .DATA_WIDTH(DATA_WIDTH),
         .NB_ADDR   (NB_ADDR)
     ) DUT (
-        .i_clk      (i_clk),
-        .i_reset    (i_reset),
-        .i_rx       (i_rx),
-        .i_if_enable(i_if_enable),
-        .i_mem_wr   (i_mem_wr),
-        .i_mem_addr (i_mem_addr),
-        .i_mem_data (i_mem_data),
-        .o_tx       (o_tx)
+        .i_clk         (i_clk),
+        .i_reset       (i_reset),
+        .i_if_enable   (i_if_enable),
+        .i_mem_wr      (i_mem_wr),
+        .i_mem_addr    (i_mem_addr),
+        .i_mem_data    (i_mem_data),
+        // debug/status ports unused in this integration test
+        .o_PC          (),
+        .o_halt        (),
+        .i_dbg_reg_addr('0),
+        .o_dbg_reg_data(),
+        .i_dbg_mem_addr('0),
+        .o_dbg_mem_data()
     );
 
     initial i_clk = 0;
@@ -344,7 +347,6 @@ module tb_branch;
     initial begin
         pass_count = 0;
         fail_count = 0;
-        i_rx       = 1;
         i_mem_wr   = 0;
         i_mem_addr = '0;
         i_mem_data = '0;

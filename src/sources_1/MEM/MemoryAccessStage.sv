@@ -17,6 +17,9 @@ module MemoryAccessStage #(
     input  logic                  i_Branch,
     input  logic                  i_Jump,
     input  logic                  i_JumpReg,
+    // debug read port (forwarded from DataMemory for the DebugUnit dump)
+    input  logic [   NB_ADDR-1:0] i_dbg_addr,
+    output logic [DATA_WIDTH-1:0] o_dbg_data,
     // outputs
     output logic [DATA_WIDTH-1:0] o_mem_read_data,
     output logic                  o_PCSrc,
@@ -33,7 +36,9 @@ module MemoryAccessStage #(
         .i_write_data(i_read_data_2),
         .i_mem_write (i_MemWrite),
         .i_funct3    (i_funct3),
-        .o_read_data (o_mem_read_data)
+        .o_read_data (o_mem_read_data),
+        .i_dbg_addr  (i_dbg_addr),
+        .o_dbg_data  (o_dbg_data)
     );
 
     // BEQ: taken when zero=1 (funct3[0]=0), BNE: taken when zero=0 (funct3[0]=1)

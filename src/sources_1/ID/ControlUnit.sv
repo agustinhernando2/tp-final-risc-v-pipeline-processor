@@ -14,6 +14,7 @@ module ControlUnit #(
     output logic                    o_Jump,
     output logic                    o_JumpReg,
     output logic                    o_LUI,
+    output logic                    o_Halt,
     output logic [             2:0] o_ImmSrc
 );
 
@@ -29,6 +30,7 @@ module ControlUnit #(
         o_Jump     = 1'b0;
         o_JumpReg  = 1'b0;
         o_LUI      = 1'b0;
+        o_Halt     = 1'b0;
         o_ImmSrc   = 3'b000;
 
         case (i_opcode)
@@ -82,6 +84,9 @@ module ControlUnit #(
                 o_Jump     = 1'b1;
                 o_JumpReg  = 1'b1;
                 o_ImmSrc   = 3'b000;
+            end
+            7'b0001011: begin  // HALT (custom-0 opcode, 0x0000000B): no escribe nada,
+                o_Halt = 1'b1;  // solo marca fin de programa para vaciar el pipeline
             end
             default: ;
         endcase

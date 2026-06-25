@@ -7,15 +7,22 @@ module RISCV #(
     parameter DATA_WIDTH = 64,
     parameter NB_ADDR    = 8
 ) (
-    input  logic               i_clk,
-    input  logic               i_reset,
-    input  logic               i_rx,
-    input  logic               i_if_enable,  // 0 = freeze IF/PC (used for program loading)
+    input  logic                  i_clk,
+    input  logic                  i_reset,
+    // Master pipeline enable: 0 freezes ALL state (PC, buffers, register and data
+    // memory writes). Driven by the DebugUnit for program load, step-by-step and halt.
+    input  logic                  i_if_enable,
     // instruction memory load interface
-    input  logic               i_mem_wr,
-    input  logic [NB_ADDR-1:0] i_mem_addr,
-    input  logic [NB_INST-1:0] i_mem_data,
-    output logic               o_tx
+    input  logic                  i_mem_wr,
+    input  logic [   NB_ADDR-1:0] i_mem_addr,
+    input  logic [   NB_INST-1:0] i_mem_data,
+    // debug / status interface (to the DebugUnit)
+    output logic [     NB_PC-1:0] o_PC,            // current fetch PC (for the dump)
+    output logic                  o_halt,          // HALT instruction reached MEM
+    input  logic [    NB_REG-1:0] i_dbg_reg_addr,  // register to read out
+    output logic [DATA_WIDTH-1:0] o_dbg_reg_data,  // register value
+    input  logic [           5:0] i_dbg_mem_addr,  // data-memory word index to read out
+    output logic [DATA_WIDTH-1:0] o_dbg_mem_data   // data-memory word value
 );
 
     // ----------------------------------------------------------------
@@ -104,6 +111,7 @@ module RISCV #(
     logic                  w_id_Jump;
     logic                  w_id_JumpReg;
     logic                  w_id_LUI;
+    logic                  w_id_Halt;
 
     // WB feedback wires (declared forward; driven by WB stage below)
     logic [DATA_WIDTH-1:0] w_wb_write_data;
@@ -115,28 +123,32 @@ module RISCV #(
         .NB_REG    (NB_REG),
         .DATA_WIDTH(DATA_WIDTH)
     ) ID (
-        .i_clk        (i_clk),
-        .i_reset      (i_reset),
-        .i_instruction(w_if_id_instruction),
-        .i_write_reg  (w_wb_write_reg),
-        .i_write_data (w_wb_write_data),
-        .i_regWrite   (w_wb_RegWrite),
-        .o_read_data_1(w_id_read_data_1),
-        .o_read_data_2(w_id_read_data_2),
-        .o_rd         (w_id_rd),
-        .o_immediate  (w_id_immediate),
-        .o_funct3     (w_id_funct3),
-        .o_funct7_5   (w_id_funct7_5),
-        .o_RegWrite   (w_id_RegWrite),
-        .o_ALUSrc     (w_id_ALUSrc),
-        .o_ALUOp      (w_id_ALUOp),
-        .o_MemRead    (w_id_MemRead),
-        .o_MemWrite   (w_id_MemWrite),
-        .o_MemToReg   (w_id_MemToReg),
-        .o_Branch     (w_id_Branch),
-        .o_Jump       (w_id_Jump),
-        .o_JumpReg    (w_id_JumpReg),
-        .o_LUI        (w_id_LUI)
+        .i_clk         (i_clk),
+        .i_reset       (i_reset),
+        .i_instruction (w_if_id_instruction),
+        .i_write_reg   (w_wb_write_reg),
+        .i_write_data  (w_wb_write_data),
+        // gate the register write with the master enable (frozen pipeline never commits)
+        .i_regWrite    (w_wb_RegWrite & i_if_enable),
+        .o_read_data_1 (w_id_read_data_1),
+        .o_read_data_2 (w_id_read_data_2),
+        .o_rd          (w_id_rd),
+        .o_immediate   (w_id_immediate),
+        .o_funct3      (w_id_funct3),
+        .o_funct7_5    (w_id_funct7_5),
+        .o_RegWrite    (w_id_RegWrite),
+        .o_ALUSrc      (w_id_ALUSrc),
+        .o_ALUOp       (w_id_ALUOp),
+        .o_MemRead     (w_id_MemRead),
+        .o_MemWrite    (w_id_MemWrite),
+        .o_MemToReg    (w_id_MemToReg),
+        .o_Branch      (w_id_Branch),
+        .o_Jump        (w_id_Jump),
+        .o_JumpReg     (w_id_JumpReg),
+        .o_LUI         (w_id_LUI),
+        .o_Halt        (w_id_Halt),
+        .i_dbg_reg_addr(i_dbg_reg_addr),
+        .o_dbg_reg_data(o_dbg_reg_data)
     );
 
     // rs1/rs2 extracted from the IF/ID instruction for hazard detection and ID/EX buffering
@@ -168,6 +180,7 @@ module RISCV #(
     logic                  w_id_ex_Jump;
     logic                  w_id_ex_JumpReg;
     logic                  w_id_ex_LUI;
+    logic                  w_id_ex_Halt;
 
     ID_EX_Buffer #(
         .NB_PC     (NB_PC),
@@ -176,7 +189,7 @@ module RISCV #(
     ) ID_EX (
         .i_clk        (i_clk),
         .i_reset      (i_reset),
-        .i_enable     (1'b1),
+        .i_enable     (i_if_enable),
         .i_flush      (w_ID_EX_flush | w_PCSrc),
         .i_PC         (w_if_id_pc),
         .i_pc_plus_4  (w_if_id_pc_plus_4),
@@ -198,6 +211,7 @@ module RISCV #(
         .i_Jump       (w_id_Jump),
         .i_JumpReg    (w_id_JumpReg),
         .i_LUI        (w_id_LUI),
+        .i_Halt       (w_id_Halt),
         .o_PC         (w_id_ex_pc),
         .o_pc_plus_4  (w_id_ex_pc_plus_4),
         .o_read_data_1(w_id_ex_read_data_1),
@@ -217,7 +231,8 @@ module RISCV #(
         .o_Branch     (w_id_ex_Branch),
         .o_Jump       (w_id_ex_Jump),
         .o_JumpReg    (w_id_ex_JumpReg),
-        .o_LUI        (w_id_ex_LUI)
+        .o_LUI        (w_id_ex_LUI),
+        .o_Halt       (w_id_ex_Halt)
     );
 
     // ----------------------------------------------------------------
@@ -311,6 +326,7 @@ module RISCV #(
     logic                  w_ex_mem_Branch;
     logic                  w_ex_mem_Jump;
     logic                  w_ex_mem_JumpReg;
+    logic                  w_ex_mem_Halt;
 
     EX_MEM_Buffer #(
         .DATA_WIDTH(DATA_WIDTH),
@@ -319,7 +335,7 @@ module RISCV #(
     ) EX_MEM (
         .i_clk          (i_clk),
         .i_reset        (i_reset),
-        .i_enable       (1'b1),
+        .i_enable       (i_if_enable),
         .i_flush        (1'b0),
         .i_alu_result   (w_ex_alu_result),
         .i_zero         (w_ex_zero),
@@ -335,6 +351,7 @@ module RISCV #(
         .i_Branch       (w_id_ex_Branch),
         .i_Jump         (w_id_ex_Jump),
         .i_JumpReg      (w_id_ex_JumpReg),
+        .i_Halt         (w_id_ex_Halt),
         .o_alu_result   (w_ex_mem_alu_result),
         .o_zero         (w_ex_mem_zero),
         .o_read_data_2  (w_ex_mem_read_data_2),
@@ -348,7 +365,8 @@ module RISCV #(
         .o_MemToReg     (w_ex_mem_MemToReg),
         .o_Branch       (w_ex_mem_Branch),
         .o_Jump         (w_ex_mem_Jump),
-        .o_JumpReg      (w_ex_mem_JumpReg)
+        .o_JumpReg      (w_ex_mem_JumpReg),
+        .o_Halt         (w_ex_mem_Halt)
     );
 
     // ----------------------------------------------------------------
@@ -368,10 +386,13 @@ module RISCV #(
         .i_read_data_2  (w_ex_mem_read_data_2),
         .i_funct3       (w_ex_mem_funct3),
         .i_branch_target(w_ex_mem_branch_target),
-        .i_MemWrite     (w_ex_mem_MemWrite),
+        // gate the store with the master enable so a frozen pipeline never writes memory
+        .i_MemWrite     (w_ex_mem_MemWrite & i_if_enable),
         .i_Branch       (w_ex_mem_Branch),
         .i_Jump         (w_ex_mem_Jump),
         .i_JumpReg      (w_ex_mem_JumpReg),
+        .i_dbg_addr     (i_dbg_mem_addr),
+        .o_dbg_data     (o_dbg_mem_data),
         .o_mem_read_data(w_mem_read_data),
         .o_PCSrc        (w_PCSrc),
         .o_PCBranch     (w_PCBranch)
@@ -385,6 +406,7 @@ module RISCV #(
     logic [     NB_PC-1:0] w_mem_wb_pc_plus_4;
     logic                  w_mem_wb_MemToReg;
     logic                  w_mem_wb_Jump;
+    logic                  w_mem_wb_Halt;
 
     MEM_WB_Buffer #(
         .DATA_WIDTH(DATA_WIDTH),
@@ -393,7 +415,7 @@ module RISCV #(
     ) MEM_WB (
         .i_clk          (i_clk),
         .i_reset        (i_reset),
-        .i_enable       (1'b1),
+        .i_enable       (i_if_enable),
         .i_alu_result   (w_ex_mem_alu_result),
         .i_mem_read_data(w_mem_read_data),
         .i_rd           (w_ex_mem_rd),
@@ -401,13 +423,15 @@ module RISCV #(
         .i_RegWrite     (w_ex_mem_RegWrite),
         .i_MemToReg     (w_ex_mem_MemToReg),
         .i_Jump         (w_ex_mem_Jump),
+        .i_Halt         (w_ex_mem_Halt),
         .o_alu_result   (w_mem_wb_alu_result),
         .o_mem_read_data(w_mem_wb_mem_read_data),
         .o_rd           (w_mem_wb_rd),
         .o_pc_plus_4    (w_mem_wb_pc_plus_4),
         .o_RegWrite     (w_mem_wb_RegWrite),
         .o_MemToReg     (w_mem_wb_MemToReg),
-        .o_Jump         (w_mem_wb_Jump)
+        .o_Jump         (w_mem_wb_Jump),
+        .o_Halt         (w_mem_wb_Halt)
     );
 
     // ----------------------------------------------------------------
@@ -432,6 +456,14 @@ module RISCV #(
 
     assign w_if_id_flush = w_PCSrc;
 
-    assign o_tx = 1'b1;
+    // ----------------------------------------------------------------
+    // Debug / status outputs
+    // ----------------------------------------------------------------
+    // HALT reached WB: program finished. We signal at WB (not MEM) so the last
+    // real instruction before HALT completes its write-back before the DebugUnit
+    // freezes the pipeline. Instructions after HALT are NOPs (loader zero-pads the
+    // program; opcode 0 decodes to a no-op), so the pipeline is effectively drained.
+    assign o_halt = w_mem_wb_Halt;
+    assign o_PC = w_if_pc;
 
 endmodule

@@ -11,7 +11,10 @@ module DataMemory #(
     input logic i_mem_write,
     input  logic [2:0]               i_funct3,  // Selects width: 000=byte, 001=halfword, 010=word, 100=byte unsigned, 101=halfword unsigned, 110=word unsigned
 
-    output logic [DATA_WIDTH-1:0] o_read_data
+    output logic [DATA_WIDTH-1:0] o_read_data,
+    // Debug read port (used by the DebugUnit to dump data memory; raw word, no extension)
+    input  logic [   NB_ADDR-1:0] i_dbg_addr,
+    output logic [DATA_WIDTH-1:0] o_dbg_data
 );
 
     logic [DATA_WIDTH-1:0] r_mem[2**NB_ADDR-1:0];
@@ -54,5 +57,8 @@ module DataMemory #(
             default: o_read_data = r_mem[i_addr];
         endcase
     end
+
+    // Debug read: raw stored word at the requested index.
+    assign o_dbg_data = r_mem[i_dbg_addr];
 
 endmodule

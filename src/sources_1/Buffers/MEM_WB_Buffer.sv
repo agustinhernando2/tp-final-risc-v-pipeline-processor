@@ -17,6 +17,7 @@ module MEM_WB_Buffer #(
     input  logic                  i_RegWrite,
     input  logic                  i_MemToReg,
     input  logic                  i_Jump,
+    input  logic                  i_Halt,
     // outputs (mirror)
     output logic [DATA_WIDTH-1:0] o_alu_result,
     output logic [DATA_WIDTH-1:0] o_mem_read_data,
@@ -24,7 +25,8 @@ module MEM_WB_Buffer #(
     output logic [     NB_PC-1:0] o_pc_plus_4,
     output logic                  o_RegWrite,
     output logic                  o_MemToReg,
-    output logic                  o_Jump
+    output logic                  o_Jump,
+    output logic                  o_Halt
 );
 
     always_ff @(posedge i_clk) begin
@@ -36,6 +38,7 @@ module MEM_WB_Buffer #(
             o_RegWrite      <= '0;
             o_MemToReg      <= '0;
             o_Jump          <= '0;
+            o_Halt          <= '0;
         end else if (i_enable) begin
             o_alu_result    <= i_alu_result;
             o_mem_read_data <= i_mem_read_data;
@@ -44,6 +47,7 @@ module MEM_WB_Buffer #(
             o_RegWrite      <= i_RegWrite;
             o_MemToReg      <= i_MemToReg;
             o_Jump          <= i_Jump;
+            o_Halt          <= i_Halt;
         end
     end
 
