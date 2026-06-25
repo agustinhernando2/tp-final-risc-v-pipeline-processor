@@ -177,8 +177,8 @@ instrucciones de más (AUIPC se removió por no estar pedida).
 
 ## C-004 — Instrucción HALT: opcode dedicado vs. self-loop
 
-**Fecha:** 2026-06-22
-**Estado:** decisión pendiente (Stage 9/10)
+**Fecha:** 2026-06-22 (resuelto 2026-06-23, Stage 9b)
+**Estado:** resuelto / implementado
 **Etapas afectadas:** ID (`ControlUnit`), Buffers, Debug Unit
 
 ### Discusión
@@ -207,11 +207,24 @@ Hay dos enfoques sobre la mesa:
    registros) y se expone un `o_halt` al top/Debug Unit para señalar fin de
    programa. Este enfoque **sí vacía el pipeline** y es más fiel al enunciado.
 
-### Decisión (tentativa)
+### Decisión (implementada en Stage 9b)
 
-Adoptar el **opcode HALT dedicado** (enfoque 2), por dos razones: cumple el
-requisito de pipeline vacío y responde directamente la pregunta del TP *"¿qué pasa
-si en memoria no hay una instrucción de parada?"* (`:174`) — sin HALT, el
-procesador sigue ejecutando lo que haya después del programa. Resta elegir el
-encoding concreto en RISC-V (opcode libre del espacio custom) al llegar a Stage 9.
-Actualizar `plans/plan.md` en consecuencia.
+Se adoptó el **opcode HALT dedicado** (enfoque 2): cumple el requisito de pipeline
+vacío y responde la pregunta del TP *"¿qué pasa si en memoria no hay una instrucción
+de parada?"* (`:174`) — sin HALT, el procesador sigue ejecutando lo que haya después.
+
+Detalles concretos del encoding y la implementación:
+
+- **Encoding:** opcode **custom-0 de RISC-V = `7'b0001011`**, instrucción
+  `0x0000000B` (resto del encoding en cero). Es espacio reservado por el ISA para
+  extensiones, así que no colisiona con ninguna instrucción base.
+- La `ControlUnit` lo decodifica a `o_Halt` con **todas las demás señales en 0** (no
+  escribe registros ni memoria). El bit `Halt` viaja por los buffers ID/EX → EX/MEM →
+  MEM/WB como un control más.
+- **`o_halt` se asierta cuando HALT llega a WB** (no a MEM): así la última instrucción
+  real anterior a HALT completa su write-back antes de que la `DebugUnit` congele el
+  pipeline (bajando el enable global `i_if_enable`). Las instrucciones posteriores a
+  HALT son NOPs (la GUI rellena el programa con `0x00000000` y la IM arranca en cero),
+  por lo que el pipeline queda efectivamente vacío al detenerse.
+- No se usó una unidad de flush dedicada para el HALT: alcanza con el padding de NOPs
+  y el corte del enable global. Ver `plans/stage9b.md`.
