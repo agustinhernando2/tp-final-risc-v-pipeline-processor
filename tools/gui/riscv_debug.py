@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """CLI de depuración del procesador RISC-V vía UART (Stage 9b).
 
-Carga programas (machine-code hex ya ensamblado), ejecuta en modo continuo o
-paso a paso, y muestra el volcado de estado (PC, registros, memoria de datos).
+Carga programas, ejecuta en modo continuo o paso a paso, y muestra el volcado de
+estado (PC, registros, memoria de datos).
 
-No incluye ensamblador: se le pasa el código máquina ya armado (ej. la salida de
-un toolchain RISC-V, o un program.hex en formato $readmemh: un word hexadecimal
-de 32 bits por línea). La instrucción de parada es HALT = 0x0000000B.
+Acepta dos formatos de entrada en `load`/`loadrun`, según la extensión:
+  - `.s` / `.asm`  -> assembly, se ensambla en el momento con `assembler.py`.
+  - cualquier otra  -> código máquina hex (formato $readmemh: un word de 32 bits
+                       por línea). La instrucción de parada es HALT = 0x0000000B.
 
 Dependencias:  pip install pyserial
 
@@ -27,9 +28,10 @@ import argparse
 import sys
 
 try:
+    import assembler
     from uart import Uart, CMD_CONTINUE, CMD_SEND_INFO, CMD_STEP_BY_STEP, CMD_STEP
 except ImportError:
-    sys.exit("No se encontró uart.py (corré el script desde tools/gui/) o falta pyserial.")
+    sys.exit("No se encontró uart.py/assembler.py (corré el script desde tools/gui/) o falta pyserial.")
 
 
 def parse_hex_program(path):
@@ -44,6 +46,16 @@ def parse_hex_program(path):
             line = line[2:] if line.lower().startswith("0x") else line
             words.append(int(line, 16) & 0xFFFFFFFF)
     return words
+
+
+def load_program(path):
+    """Ensambla (.s/.asm) o parsea hex según la extensión del archivo."""
+    if path.lower().endswith((".s", ".asm")):
+        try:
+            return assembler.assemble_file(path)
+        except assembler.AssemblerError as e:
+            sys.exit(f"error de ensamblado en {path}: {e}")
+    return parse_hex_program(path)
 
 
 def print_dump(pc, regs, mem):
@@ -78,7 +90,7 @@ def main():
     u = Uart(args.port, args.baud)
     try:
         if args.cmd in ("load", "loadrun"):
-            words = parse_hex_program(args.file)
+            words = load_program(args.file)
             print(f"Cargando {len(words)} instrucción(es) desde {args.file}...")
             u.send_program(words)
             if args.cmd == "load":

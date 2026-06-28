@@ -1,0 +1,11 @@
+[project]
+name = "riscv-debug-gui"
+version = "0.2.0"
+description = "Herramientas de host RISC-V: GUI + CLI de depuración vía UART y ensamblador (lado PC del protocolo de la DebugUnit)"
+requires-python = ">=3.9"
+dependencies = [
+    "pyserial>=3.5",
+]
+
+[tool.uv]
+package = false
