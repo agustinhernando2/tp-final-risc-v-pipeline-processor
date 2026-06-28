@@ -23,7 +23,7 @@
 //   o_led   = LEDs
 // =============================================================================
 module UartLoopbackTop #(
-    parameter int CLK      = 100_000_000,  // reloj de la Basys-3 [Hz]
+    parameter int CLK      = 100_000_000,  // 100 MHz
     parameter int BAUDRATE = 19200,        // baud rate
     parameter int NB_DATA  = 8             // bits por byte
 ) (
