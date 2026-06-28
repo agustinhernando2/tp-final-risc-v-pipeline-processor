@@ -228,3 +228,72 @@ Detalles concretos del encoding y la implementación:
   por lo que el pipeline queda efectivamente vacío al detenerse.
 - No se usó una unidad de flush dedicada para el HALT: alcanza con el padding de NOPs
   y el corte del enable global. Ver `plans/stage9b.md`.
+
+---
+
+## C-005 — Asignación bloqueante (`=`) vs. no bloqueante (`<=`): cuándo usar cada una
+
+**Fecha:** 2026-06-23
+**Estado:** nota de referencia
+**Etapas afectadas:** todas las que usan FSMs de dos bloques (UART, DebugUnit, buffers, etc.)
+
+### Regla de oro
+
+| Bloque | Asignación | Modela |
+|--------|-----------|--------|
+| `always_ff` (secuencial, `@(posedge i_clk)`) | **no bloqueante `<=`** | flip-flops (memoria de estado) |
+| `always_comb` (combinacional) | **bloqueante `=`** | compuertas (cálculo del próximo estado) |
+
+Esto aplica al patrón de **FSM de dos bloques** que usamos en toda la UART y la
+DebugUnit: un `always_ff` que **guarda** el estado (`r_*`) y un `always_comb` que
+**calcula** el próximo estado (`w_next_*`) a partir del estado actual y las entradas.
+
+### Por qué
+
+Son **dos garantías independientes** que trabajan juntas:
+
+1. **No bloqueante en el `always_ff`** → todos los lados derechos se evalúan con los
+   valores *viejos* y todos los registros se actualizan **a la vez** en el flanco.
+   Así el `always_comb` siempre lee una **foto coherente** del estado: ningún
+   registro ve el valor "ya nuevo" de otro a mitad de flanco.
+
+2. **Bloqueante en el `always_comb`** → las asignaciones se ejecutan **en orden, de
+   arriba hacia abajo, y toman efecto al instante** (como software). Eso es lo que
+   hace funcionar el patrón *default y después sobrescribo*:
+
+   ```systemverilog
+   w_next_state = r_state;   // 1) default: quedarse igual
+   ...
+   w_next_state = START;     // 2) lo piso si corresponde (dentro del case)
+   ```
+
+   y modela cómo una red de compuertas se asienta en su valor final en un solo paso.
+
+### Qué pasa si se invierten
+
+- **`always_ff` con bloqueante:** los registros se actualizan **en orden** y uno puede
+  usar el valor *ya nuevo* de otro en el mismo flanco → carrera, comportamiento
+  dependiente del orden de las líneas. Ejemplo de shift register: `b<=a; c<=b;`
+  desplaza bien; `b=a; c=b;` colapsa (`c` toma el `a` nuevo, se "come" una etapa).
+
+- **`always_comb` con no bloqueante:** los updates se difieren al final del paso de
+  tiempo (región NBA). Una línea que lea una señal asignada más arriba en el mismo
+  bloque leería el valor **viejo** → dataflow roto y, sobre todo, **mismatch entre
+  simulación y síntesis** (el sintetizador infiere las mismas compuertas, pero la
+  simulación RTL se comporta distinto). Bug carísimo de encontrar.
+
+### El "baile" de un ciclo (modelo mental)
+
+1. **Flanco de subida:** el `always_ff` latchea `w_next_* → r_*` (todos a la vez).
+2. Cambian los `r_*` → el `always_comb` se dispara y recalcula `w_next_*`
+   (bloqueante) a partir de los `r_*` nuevos + las entradas actuales.
+3. Entre flancos, si cambia una entrada, el `always_comb` recalcula de nuevo.
+4. Próximo flanco: el `always_ff` vuelve a latchear. Y se repite.
+
+El `always_ff` es la **memoria** (avanza una "generación" por flanco); el
+`always_comb` es el **cálculo** (puede recalcular muchas veces entre flancos, pero
+recién se consolida en estado en el próximo flanco).
+
+> Convención estándar (regla de Cummings, *"Nonblocking Assignments in Verilog
+> Synthesis"*): secuencial → `<=`, combinacional → `=`. Mezclarlas es una *red flag*
+> en cualquier review y la causa más común de mismatch simulación–síntesis.
