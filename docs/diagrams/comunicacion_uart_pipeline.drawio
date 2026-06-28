@@ -1,0 +1,112 @@
+<mxfile host="app.diagrams.net" agent="Claude Code" version="24.0.0">
+  <diagram id="uart-pipeline" name="Computadora-UART-Pipeline">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ===================== COMPUTADORA ===================== -->
+        <mxCell id="pc" value="Computadora (Host)&#10;&#10;GUI: tools/gui/riscv_debug.py&#10;Puerto serie USB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;fontSize=13;fontStyle=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="320" width="220" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== FPGA BASYS-3 ===================== -->
+        <mxCell id="fpga" value="FPGA Basys-3  (RiscvTop)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;dashed=1;verticalAlign=top;fontSize=14;fontStyle=1;align=left;spacingLeft=12;spacingTop=8;arcSize=3;" vertex="1" parent="1">
+          <mxGeometry x="360" y="60" width="1180" height="720" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== UART ===================== -->
+        <mxCell id="uart" value="UART  (8N1, 19200 baud, oversampling 16x)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontSize=13;fontStyle=1;align=center;spacingTop=8;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="420" y="200" width="300" height="440" as="geometry" />
+        </mxCell>
+
+        <mxCell id="baud" value="BaudRateGenerator&#10;genera s_tick (oversampling)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="450" y="250" width="240" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uartrx" value="UartRx&#10;serie -&gt; paralelo&#10;o_rx_data[7:0] + o_rx_done_tick" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="450" y="350" width="240" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="uarttx" value="UartTx&#10;paralelo -&gt; serie&#10;i_tx_data[7:0] + i_tx_start&#10;o_tx_done_tick" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="450" y="490" width="240" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== BLOQUE INTERMEDIO OMITIDO ===================== -->
+        <mxCell id="ctrl" value="Control de carga / ejecucion&#10;(omitido a pedido)&#10;&#10;adapta bytes &lt;-&gt; palabras de 32 bits&#10;y genera i_if_enable" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#666666;fontSize=11;align=center;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="780" y="350" width="220" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== PIPELINE RISC-V ===================== -->
+        <mxCell id="core" value="RISCV  -  Pipeline de 5 etapas" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontSize=13;fontStyle=1;align=center;spacingTop=8;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="120" width="440" height="600" as="geometry" />
+        </mxCell>
+
+        <mxCell id="imem" value="InstructionMemory&#10;(escritura: i_imem_wr / i_imem_addr / i_imem_data)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=center;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="170" width="380" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="st_if" value="IF  -  Instruction Fetch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=12;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="270" width="340" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="st_id" value="ID  -  Instruction Decode / RegisterFile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=12;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="340" width="340" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="st_ex" value="EX  -  Execute / ALU" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=12;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="410" width="340" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="st_mem" value="MEM  -  Memory Access / DataMemory" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=12;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="480" width="340" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="st_wb" value="WB  -  Write Back" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=12;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="550" width="340" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- flechas internas del pipeline -->
+        <mxCell id="e_if_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d79b00;" edge="1" parent="1" source="st_if" target="st_id"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_id_ex" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d79b00;" edge="1" parent="1" source="st_id" target="st_ex"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_ex_mem" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d79b00;" edge="1" parent="1" source="st_ex" target="st_mem"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_mem_wb" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d79b00;" edge="1" parent="1" source="st_mem" target="st_wb"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_imem_if" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#d6b656;dashed=1;" edge="1" parent="1" source="imem" target="st_if"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===================== ENLACE SERIE: PC <-> UART ===================== -->
+        <mxCell id="e_rx" value="bytes del programa&#10;linea serie  i_rx" style="endArrow=block;html=1;strokeColor=#6c8ebf;fontSize=11;fontColor=#333333;" edge="1" parent="1" source="pc" target="uartrx">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="320" y="380" /><mxPoint x="320" y="400" /></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_tx" value="dump de estado&#10;linea serie  o_tx" style="endArrow=block;html=1;strokeColor=#6c8ebf;fontSize=11;fontColor=#333333;" edge="1" parent="1" source="uarttx" target="pc">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="320" y="550" /><mxPoint x="320" y="440" /></Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===================== UART <-> CONTROL (omitido) ===================== -->
+        <mxCell id="e_rx_ctrl" value="o_rx_data / o_rx_done_tick" style="endArrow=block;html=1;strokeColor=#999999;dashed=1;fontSize=10;fontColor=#666666;" edge="1" parent="1" source="uartrx" target="ctrl">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ctrl_tx" value="i_tx_data / i_tx_start" style="endArrow=block;html=1;strokeColor=#999999;dashed=1;fontSize=10;fontColor=#666666;" edge="1" parent="1" source="ctrl" target="uarttx">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== CONTROL <-> PIPELINE ===================== -->
+        <mxCell id="e_load" value="carga de programa&#10;i_imem_wr / i_imem_addr / i_imem_data&#10;i_if_enable" style="endArrow=block;html=1;strokeColor=#82b366;fontSize=10;fontColor=#333333;" edge="1" parent="1" source="ctrl" target="imem">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1030" y="200" /></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_dump" value="estado del core&#10;o_PC / o_halt / regs / data mem" style="endArrow=block;html=1;strokeColor=#b85450;fontSize=10;fontColor=#333333;" edge="1" parent="1" source="st_wb" target="ctrl">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1030" y="575" /><mxPoint x="890" y="575" /></Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===================== LEYENDA ===================== -->
+        <mxCell id="leg" value="Flujo:&#10;1) El host envia el binario byte a byte por la UART (i_rx).&#10;2) La UART convierte serie -&gt; paralelo (UartRx).&#10;3) Los bytes se ensamblan en instrucciones de 32 bits y se escriben en InstructionMemory.&#10;4) Con i_if_enable, el pipeline ejecuta IF -&gt; ID -&gt; EX -&gt; MEM -&gt; WB hasta HALT.&#10;5) El estado (PC, registros, memoria de datos) vuelve al host por la UART (o_tx)." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#cccccc;align=left;verticalAlign=top;fontSize=11;spacingLeft=10;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="420" y="660" width="700" height="110" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
