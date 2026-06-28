@@ -33,7 +33,7 @@ lo que no hace falta forwarding.
 - **Reloj:** periodo de 10 ns. La task `tick` espera el flanco de subida y
   avanza 1 ns para muestrear las señales de forma segura, evitando carreras.
 - **`load_instr(addr, instr)`:** carga una palabra de instrucción usando el
-  puerto de debug de la memoria (`i_mem_wr` / `i_mem_addr` / `i_mem_data`) — el
+  puerto de debug de la memoria (`i_imem_wr` / `i_imem_addr` / `i_imem_data`) — el
   mismo puerto que en hardware usará el cargador por UART.
 - **`check(name, got, expected)`:** compara con `===` (igualdad de 4 estados,
   detecta `X`/`Z`) y lleva la cuenta de PASS/FAIL.

@@ -13,9 +13,9 @@ module RISCV #(
     // memory writes). Driven by the DebugUnit for program load, step-by-step and halt.
     input  logic                  i_if_enable,
     // instruction memory load interface
-    input  logic                  i_mem_wr,
-    input  logic [   NB_ADDR-1:0] i_mem_addr,
-    input  logic [   NB_INST-1:0] i_mem_data,
+    input  logic                  i_imem_wr,
+    input  logic [   NB_ADDR-1:0] i_imem_addr,
+    input  logic [   NB_INST-1:0] i_imem_data,
     // debug / status interface (to the DebugUnit)
     output logic [     NB_PC-1:0] o_PC,            // current fetch PC (for the dump)
     output logic                  o_halt,          // HALT instruction reached MEM
@@ -61,9 +61,9 @@ module RISCV #(
         .i_enable      (w_if_pc_enable),
         .i_PCSrc       (w_PCSrc),
         .i_PCBranch    (w_PCBranch),
-        .i_mem_wr      (i_mem_wr),
-        .i_mem_addr    (i_mem_addr),
-        .i_mem_data    (i_mem_data),
+        .i_imem_wr     (i_imem_wr),
+        .i_imem_addr   (i_imem_addr),
+        .i_imem_data   (i_imem_data),
         .o_PC_increment(w_if_pc_inc),
         .o_instruction (w_if_instruction),
         .o_PC          (w_if_pc)

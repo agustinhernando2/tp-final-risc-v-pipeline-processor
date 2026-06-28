@@ -46,9 +46,9 @@ module RiscvTop #(
     // Interconexión DebugUnit <-> RISCV core
     // -------------------------------------------------------------------------
     logic                  w_pipeline_enable;
-    logic                  w_mem_wr;
-    logic [  NB_IADDR-1:0] w_mem_addr;
-    logic [   NB_INST-1:0] w_mem_data;
+    logic                  w_imem_wr;
+    logic [  NB_IADDR-1:0] w_imem_addr;
+    logic [   NB_INST-1:0] w_imem_data;
     logic [    NB_REG-1:0] w_dbg_reg_addr;
     logic [  NB_DADDR-1:0] w_dbg_mem_addr;
     logic [     NB_PC-1:0] w_pc;
@@ -101,9 +101,9 @@ module RiscvTop #(
         .i_rx_data        (w_rx_data),
         .o_tx_data        (w_tx_data),
         .o_tx_start       (w_tx_start),
-        .o_mem_wr         (w_mem_wr),
-        .o_mem_addr       (w_mem_addr),
-        .o_mem_data       (w_mem_data),
+        .o_imem_wr        (w_imem_wr),
+        .o_imem_addr      (w_imem_addr),
+        .o_imem_data      (w_imem_data),
         .o_reg_addr       (w_dbg_reg_addr),
         .o_mem_data_addr  (w_dbg_mem_addr),
         .o_pipeline_enable(w_pipeline_enable),
@@ -123,9 +123,9 @@ module RiscvTop #(
         .i_clk         (i_clk),
         .i_reset       (i_reset),
         .i_if_enable   (w_pipeline_enable),
-        .i_mem_wr      (w_mem_wr),
-        .i_mem_addr    (w_mem_addr),
-        .i_mem_data    (w_mem_data),
+        .i_imem_wr     (w_imem_wr),
+        .i_imem_addr   (w_imem_addr),
+        .i_imem_data   (w_imem_data),
         .o_PC          (w_pc),
         .o_halt        (w_halt),
         .i_dbg_reg_addr(w_dbg_reg_addr),

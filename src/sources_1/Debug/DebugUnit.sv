@@ -8,7 +8,7 @@
 //
 //   - Carga de programa: recibe los bytes del programa por UART, los ensambla
 //     en words de 32 bits (instrucciones RISC-V) y los escribe en la memoria
-//     de instrucciones del core (puerto i_mem_wr/addr/data).
+//     de instrucciones del core (puerto i_imem_wr/addr/data).
 //   - Ejecución continua: corre el pipeline hasta detectar HALT (i_halt) y
 //     después vuelca el estado.
 //   - Paso a paso: ejecuta exactamente un ciclo por comando y vuelca el estado.
@@ -21,7 +21,7 @@
 //   Dump : PC (8 bytes) -> 32 registros × 8 bytes -> DM_DEPTH words × 8 bytes.
 //
 // Nota de temporización: la FSM corre en **flanco descendente** del reloj. El
-// pipeline corre en flanco de subida y muestrea o_pipeline_enable / o_mem_wr;
+// pipeline corre en flanco de subida y muestrea o_pipeline_enable / o_imem_wr;
 // al actualizar la FSM en el flanco opuesto, esas señales quedan estables antes
 // del flanco de subida que las usa (evita carreras). Es el patrón del MIPS de
 // base, válido en FPGA.
@@ -45,7 +45,7 @@ module DebugUnit #(
     input logic                  i_halt,      // HALT llegó a MEM (fin de programa)
     input logic [     NB_PC-1:0] i_pc,        // PC actual
     input logic [DATA_WIDTH-1:0] i_reg_data,  // registro leído en o_reg_addr
-    input logic [DATA_WIDTH-1:0] i_mem_data,  // word de mem de datos leído en o_mem_addr
+    input logic [DATA_WIDTH-1:0] i_mem_data,  // word de mem de datos leído en o_mem_data_addr
 
     // UART
     input  logic               i_rx_done,  // byte recibido
@@ -55,9 +55,9 @@ module DebugUnit #(
     output logic               o_tx_start, // iniciar transmisión
 
     // Carga de memoria de instrucciones
-    output logic                o_mem_wr,    // write enable a la IM del core
-    output logic [NB_IADDR-1:0] o_mem_addr,  // índice de word de la IM
-    output logic [ NB_INST-1:0] o_mem_data,  // instrucción ensamblada (32 bits)
+    output logic                o_imem_wr,    // write enable a la IM del core
+    output logic [NB_IADDR-1:0] o_imem_addr,  // índice de word de la IM
+    output logic [ NB_INST-1:0] o_imem_data,  // instrucción ensamblada (32 bits)
 
     // Direcciones de lectura para el dump
     output logic [  NB_REG-1:0] o_reg_addr,      // registro a leer
@@ -356,9 +356,9 @@ module DebugUnit #(
     // -------------------------------------------------------------------------
     assign o_tx_data         = r_tx_data;
     assign o_tx_start        = r_tx_start;
-    assign o_mem_wr          = r_mem_wr;
-    assign o_mem_addr        = r_im_addr;
-    assign o_mem_data        = r_im_data;
+    assign o_imem_wr         = r_mem_wr;
+    assign o_imem_addr       = r_im_addr;
+    assign o_imem_data       = r_im_data;
     assign o_reg_addr        = r_reg_idx;
     assign o_mem_data_addr   = r_mem_idx;
     assign o_pipeline_enable = r_pipeline_enable;

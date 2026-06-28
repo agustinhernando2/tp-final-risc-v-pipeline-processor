@@ -10,9 +10,9 @@ module InstructionFetch #(
     input logic               i_enable,
     input logic               i_PCSrc,
     input logic [  NB_PC-1:0] i_PCBranch,
-    input logic               i_mem_wr,
-    input logic [NB_ADDR-1:0] i_mem_addr,
-    input logic [NB_INST-1:0] i_mem_data,
+    input logic               i_imem_wr,
+    input logic [NB_ADDR-1:0] i_imem_addr,
+    input logic [NB_INST-1:0] i_imem_data,
 
     output logic [  NB_PC-1:0] o_PC_increment,
     output logic [NB_INST-1:0] o_instruction,
@@ -49,9 +49,9 @@ module InstructionFetch #(
         .i_clk        (i_clk),
         .i_reset      (i_reset),
         .i_PC         (w_PC),
-        .i_mem_wr     (i_mem_wr),
-        .i_mem_addr   (i_mem_addr),
-        .i_mem_data   (i_mem_data),
+        .i_imem_wr    (i_imem_wr),
+        .i_imem_addr  (i_imem_addr),
+        .i_imem_data  (i_imem_data),
         .o_instruction(o_instruction)
     );
 

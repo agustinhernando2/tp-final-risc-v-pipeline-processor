@@ -15,9 +15,9 @@ module tb_branch;
     logic               i_clk;
     logic               i_reset;
     logic               i_if_enable;
-    logic               i_mem_wr;
-    logic [NB_ADDR-1:0] i_mem_addr;
-    logic [NB_INST-1:0] i_mem_data;
+    logic               i_imem_wr;
+    logic [NB_ADDR-1:0] i_imem_addr;
+    logic [NB_INST-1:0] i_imem_data;
 
     RISCV #(
         .NB_PC     (NB_PC),
@@ -29,9 +29,9 @@ module tb_branch;
         .i_clk         (i_clk),
         .i_reset       (i_reset),
         .i_if_enable   (i_if_enable),
-        .i_mem_wr      (i_mem_wr),
-        .i_mem_addr    (i_mem_addr),
-        .i_mem_data    (i_mem_data),
+        .i_imem_wr     (i_imem_wr),
+        .i_imem_addr   (i_imem_addr),
+        .i_imem_data   (i_imem_data),
         // debug/status ports unused in this integration test
         .o_PC          (),
         .o_halt        (),
@@ -51,12 +51,12 @@ module tb_branch;
 
     task load_instr(input [NB_ADDR-1:0] addr, input [NB_INST-1:0] instr);
         @(negedge i_clk);
-        i_mem_wr   = 1;
-        i_mem_addr = addr;
-        i_mem_data = instr;
+        i_imem_wr   = 1;
+        i_imem_addr = addr;
+        i_imem_data = instr;
         @(posedge i_clk);
         #1;
-        i_mem_wr = 0;
+        i_imem_wr = 0;
     endtask
 
     int pass_count;
@@ -345,11 +345,11 @@ module tb_branch;
     // Main
     // -------------------------------------------------------------------------
     initial begin
-        pass_count = 0;
-        fail_count = 0;
-        i_mem_wr   = 0;
-        i_mem_addr = '0;
-        i_mem_data = '0;
+        pass_count  = 0;
+        fail_count  = 0;
+        i_imem_wr   = 0;
+        i_imem_addr = '0;
+        i_imem_data = '0;
 
         // ==============================================================
         // TEST 1: BNE Loop — count x1 from 0 to 3

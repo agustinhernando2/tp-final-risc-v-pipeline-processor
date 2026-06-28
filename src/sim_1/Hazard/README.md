@@ -8,7 +8,7 @@ que valida las dos unidades de riesgos de datos:
 [`HazardDetectionUnit`](../../../docs/hazard-detection-unit.md).
 
 **Flujo:** reset → carga el programa por la interfaz de debug
-(`i_mem_wr`/`i_mem_addr`/`i_mem_data`, con `i_if_enable=0`) → ejecuta
+(`i_imem_wr`/`i_imem_addr`/`i_imem_data`, con `i_if_enable=0`) → ejecuta
 (`i_if_enable=1`, ~30 ciclos) → verifica el banco de registros (`DUT.ID.RF.r_RF`).
 
 ## Por qué estas instrucciones
