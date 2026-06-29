@@ -10,13 +10,14 @@ Implementa el protocolo de la DebugUnit (src/sources_1/Debug/DebugUnit.sv):
       5 = STEP           ejecutar un ciclo
 
   Carga: tras 0x01 se envían IM_WORDS instrucciones × 4 bytes, MSB-first.
-  Dump : PC (8 bytes) -> 32 registros × 8 bytes -> DM_DEPTH words × 8 bytes,
+  Dump : PC (8 bytes) -> 32 registros × 4 bytes -> DM_DEPTH words × 4 bytes,
          todo MSB-first / big-endian.
 
 Config serie: 19200 8N1 (igual que el MIPS de base, para reusar herramientas).
 
-Adaptado de GUI/uart.py del proyecto MIPS: el datapath RISC-V es de 64 bits, así
-que cada valor del dump son 8 bytes (no 4); las instrucciones siguen siendo de 32.
+El datapath RISC-V es de 32 bits (DATA_WIDTH=32), así que cada registro/word de
+memoria del dump son 4 bytes. El PC sigue siendo de 64 bits (NB_PC=64) -> 8 bytes.
+WORD_BYTES = DATA_WIDTH/8; si se cambia DATA_WIDTH en RiscvTop, actualizar acá.
 """
 
 import serial
@@ -32,8 +33,8 @@ CMD_STEP         = 5
 IM_WORDS   = 64    # instrucciones del programa (con padding)
 N_REG      = 32    # registros volcados
 N_MEM      = 64    # words de memoria de datos volcados
-WORD_BYTES = 8     # 64 bits por valor del dump
-PC_BYTES   = 8
+WORD_BYTES = 4     # 32 bits por valor del dump (DATA_WIDTH=32)
+PC_BYTES   = 8     # PC de 64 bits (NB_PC=64)
 
 
 class Uart:
