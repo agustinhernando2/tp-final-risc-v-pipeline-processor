@@ -280,9 +280,12 @@ class DebugGui(tk.Tk):
         def run():
             try:
                 result = work()
-                self.after(0, lambda: done(result, None))
-            except Exception as e:  # noqa: BLE001
-                self.after(0, lambda: done(None, e))
+            except Exception as exc:  # noqa: BLE001
+                # Hay que ligar `exc` al lambda: la variable del except se borra al
+                # salir del bloque y `after` lo ejecuta después (NameError si no).
+                self.after(0, lambda exc=exc: done(None, exc))
+            else:
+                self.after(0, lambda result=result: done(result, None))
         self._set_busy(True)
         threading.Thread(target=run, daemon=True).start()
 
