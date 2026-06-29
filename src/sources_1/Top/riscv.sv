@@ -5,7 +5,8 @@ module RISCV #(
     parameter NB_INST    = 32,
     parameter NB_REG     = 5,
     parameter DATA_WIDTH = 64,
-    parameter NB_ADDR    = 8
+    parameter NB_ADDR    = 8,
+    parameter NB_LADDR   = 5    // bits de dirección del dump de latches (>= clog2(LATCH_COUNT))
 ) (
     input  logic                  i_clk,
     input  logic                  i_reset,
@@ -17,12 +18,14 @@ module RISCV #(
     input  logic [   NB_ADDR-1:0] i_imem_addr,
     input  logic [   NB_INST-1:0] i_imem_data,
     // debug / status interface (to the DebugUnit)
-    output logic [     NB_PC-1:0] o_PC,            // current fetch PC (for the dump)
-    output logic                  o_halt,          // HALT instruction reached MEM
-    input  logic [    NB_REG-1:0] i_dbg_reg_addr,  // register to read out
-    output logic [DATA_WIDTH-1:0] o_dbg_reg_data,  // register value
-    input  logic [           5:0] i_dbg_mem_addr,  // data-memory word index to read out
-    output logic [DATA_WIDTH-1:0] o_dbg_mem_data   // data-memory word value
+    output logic [     NB_PC-1:0] o_PC,              // current fetch PC (for the dump)
+    output logic                  o_halt,            // HALT instruction reached MEM
+    input  logic [    NB_REG-1:0] i_dbg_reg_addr,    // register to read out
+    output logic [DATA_WIDTH-1:0] o_dbg_reg_data,    // register value
+    input  logic [           5:0] i_dbg_mem_addr,    // data-memory word index to read out
+    output logic [DATA_WIDTH-1:0] o_dbg_mem_data,    // data-memory word value
+    input  logic [  NB_LADDR-1:0] i_dbg_latch_addr,  // intermediate-latch field index to read out
+    output logic [DATA_WIDTH-1:0] o_dbg_latch_data   // intermediate-latch field value
 );
 
     // ----------------------------------------------------------------
@@ -465,5 +468,79 @@ module RISCV #(
     // program; opcode 0 decodes to a no-op), so the pipeline is effectively drained.
     assign o_halt = w_mem_wb_Halt;
     assign o_PC = w_if_pc;
+
+    // ----------------------------------------------------------------
+    // Debug: intermediate pipeline latches (buffers) read mux
+    // ----------------------------------------------------------------
+    // Each index maps to one stored field of one of the four pipeline buffers
+    // (IF/ID, ID/EX, EX/MEM, MEM/WB), zero-extended/truncated to DATA_WIDTH.
+    // Control bits are packed into a single "ctrl" word per buffer (bit 0 = the
+    // first signal listed). The order MUST match SEND_LATCH in DebugUnit.sv and
+    // LATCH_FIELDS in tools/gui/uart.py. LATCH_COUNT = 25 (indices 0..24).
+    always_comb begin
+        case (i_dbg_latch_addr)
+            // --- IF/ID -------------------------------------------------------
+            5'd0: o_dbg_latch_data = DATA_WIDTH'(w_if_id_pc);
+            5'd1: o_dbg_latch_data = DATA_WIDTH'(w_if_id_pc_plus_4);
+            5'd2: o_dbg_latch_data = DATA_WIDTH'(w_if_id_instruction);
+            // --- ID/EX -------------------------------------------------------
+            5'd3: o_dbg_latch_data = DATA_WIDTH'(w_id_ex_pc);
+            5'd4: o_dbg_latch_data = DATA_WIDTH'(w_id_ex_pc_plus_4);
+            5'd5: o_dbg_latch_data = w_id_ex_read_data_1;
+            5'd6: o_dbg_latch_data = w_id_ex_read_data_2;
+            5'd7: o_dbg_latch_data = w_id_ex_immediate;
+            5'd8: o_dbg_latch_data = DATA_WIDTH'(w_id_ex_rs1);
+            5'd9: o_dbg_latch_data = DATA_WIDTH'(w_id_ex_rs2);
+            5'd10: o_dbg_latch_data = DATA_WIDTH'(w_id_ex_rd);
+            // funct word: bit3 = funct7_5, bits[2:0] = funct3
+            5'd11: o_dbg_latch_data = DATA_WIDTH'({w_id_ex_funct7_5, w_id_ex_funct3});
+            // ctrl: {Halt,LUI,JumpReg,Jump,Branch,MemToReg,MemWrite,MemRead,ALUOp[1:0],ALUSrc,RegWrite}
+            5'd12:
+            o_dbg_latch_data = DATA_WIDTH'({
+                w_id_ex_Halt,
+                w_id_ex_LUI,
+                w_id_ex_JumpReg,
+                w_id_ex_Jump,
+                w_id_ex_Branch,
+                w_id_ex_MemToReg,
+                w_id_ex_MemWrite,
+                w_id_ex_MemRead,
+                w_id_ex_ALUOp,
+                w_id_ex_ALUSrc,
+                w_id_ex_RegWrite
+            });
+            // --- EX/MEM ------------------------------------------------------
+            5'd13: o_dbg_latch_data = w_ex_mem_alu_result;
+            5'd14: o_dbg_latch_data = w_ex_mem_read_data_2;
+            5'd15: o_dbg_latch_data = DATA_WIDTH'(w_ex_mem_branch_target);
+            5'd16: o_dbg_latch_data = DATA_WIDTH'(w_ex_mem_pc_plus_4);
+            5'd17: o_dbg_latch_data = DATA_WIDTH'(w_ex_mem_rd);
+            5'd18: o_dbg_latch_data = DATA_WIDTH'(w_ex_mem_funct3);
+            // ctrl: {zero,Halt,JumpReg,Jump,Branch,MemToReg,MemWrite,MemRead,RegWrite}
+            5'd19:
+            o_dbg_latch_data = DATA_WIDTH'({
+                w_ex_mem_zero,
+                w_ex_mem_Halt,
+                w_ex_mem_JumpReg,
+                w_ex_mem_Jump,
+                w_ex_mem_Branch,
+                w_ex_mem_MemToReg,
+                w_ex_mem_MemWrite,
+                w_ex_mem_MemRead,
+                w_ex_mem_RegWrite
+            });
+            // --- MEM/WB ------------------------------------------------------
+            5'd20: o_dbg_latch_data = w_mem_wb_alu_result;
+            5'd21: o_dbg_latch_data = w_mem_wb_mem_read_data;
+            5'd22: o_dbg_latch_data = DATA_WIDTH'(w_mem_wb_pc_plus_4);
+            5'd23: o_dbg_latch_data = DATA_WIDTH'(w_mem_wb_rd);
+            // ctrl: {Halt,Jump,MemToReg,RegWrite}
+            5'd24:
+            o_dbg_latch_data = DATA_WIDTH'({
+                w_mem_wb_Halt, w_mem_wb_Jump, w_mem_wb_MemToReg, w_mem_wb_RegWrite
+            });
+            default: o_dbg_latch_data = '0;
+        endcase
+    end
 
 endmodule

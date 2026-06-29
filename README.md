@@ -1,18 +1,22 @@
 # RISC-V 5-Stage Pipelined Processor
 
-A 5-stage pipelined RISC-V processor implemented in SystemVerilog, targeting the **Basys-3 FPGA** board. The design follows the classic Patterson & Hennessy pipeline: **IF → ID → EX → MEM → WB**, with full data-hazard handling (forwarding + load-use stall) and branch/jump control-hazard handling (assume-not-taken + flush, 2-cycle penalty). The datapath is 64-bit wide (`DATA_WIDTH = NB_PC = 64`); RISC-V instructions remain 32-bit.
+A 5-stage pipelined RISC-V processor implemented in SystemVerilog, targeting the **Basys-3 FPGA** board. The design follows the classic Patterson & Hennessy pipeline: **IF → ID → EX → MEM → WB**, with full data-hazard handling (forwarding + load-use stall) and branch/jump control-hazard handling (assume-not-taken + flush, 2-cycle penalty). The datapath is **32-bit** wide (`DATA_WIDTH = 32`, RV32); the PC is kept 64-bit (`NB_PC = 64`). RISC-V instructions are 32-bit.
+
+**Status: complete and validated on the physical Basys-3.** UART program loading, continuous and step-by-step debug, and timing closure are all working on hardware. The SoC is clocked by an MMCM at **65 MHz** (the max reliable frequency for the 32-bit datapath; see the timing reports under `docs/reports/`).
 
 ---
 
 ## Architecture Overview
 
-The top-level module (`RISCV`) exposes a UART interface (`i_rx` / `o_tx`) for loading programs and interacting with the processor via a host PC. All five stages are wired end-to-end with forwarding, load-use stall detection, and branch/jump flushing. Branches and jumps are resolved at the EX/MEM boundary (start of MEM); on a taken branch/jump the `IF/ID` and `ID/EX` buffers are flushed (2-cycle penalty).
+The pipeline core (`RISCV`) is wrapped by `RiscvTop`, the synthesis top, which adds the UART, the `DebugUnit` FSM, and the MMCM clocking the whole SoC at 65 MHz. The UART interface (`i_rx` / `o_tx`) lets a host PC load programs and drive the processor. All five stages are wired end-to-end with forwarding, load-use stall detection, and branch/jump flushing. Branches and jumps are resolved at the EX/MEM boundary (start of MEM); on a taken branch/jump the `IF/ID` and `ID/EX` buffers are flushed (2-cycle penalty).
+
+Programs are driven over UART by the host tooling in `tools/gui/` (assembler + debug GUI/CLI). Programs must end with the dedicated `HALT` instruction (custom-0 opcode `0x0000000B`); the loader zero-pads the rest of memory and zeros decode as NOPs.
 
 ---
 
 ## Implementation Progress
 
-The processor is built in staged increments. Current status:
+The processor is built in staged increments. **All stages (0–11) are done and validated on hardware:**
 
 | Stage | Title | Status |
 |-------|-------|--------|
@@ -25,9 +29,9 @@ The processor is built in staged increments. Current status:
 | 6 | WB + full pipeline wired end-to-end | ✅ Done |
 | 7 | Hazard detection + forwarding | ✅ Done |
 | 8 | Branch & jump handling | ✅ Done |
-| 9 | UART & debug unit | ⬜ Pending |
-| 10 | Operating modes (continuous / step-by-step) | ⬜ Pending |
-| 11 | Timing analysis & frequency optimization | ⬜ Pending |
+| 9 | UART & debug unit (program load, HALT) | ✅ Done |
+| 10 | Operating modes (continuous / step-by-step) | ✅ Done (DebugUnit FSM) |
+| 11 | Timing analysis & frequency optimization (MMCM @ 65 MHz) | ✅ Done |
 
 ---
 
@@ -43,7 +47,8 @@ The processor is built in staged increments. Current status:
 | MEM — Memory Access | `MemoryAccessStage` | `src/sources_1/MEM/MemoryAccessStage.sv` |
 | WB — Write Back | `WriteBackStage` | `src/sources_1/WB/WriteBackStage.sv` |
 
-Top level: `src/sources_1/Top/riscv.sv` — `RISCV` module wiring all stages.
+Pipeline core: `src/sources_1/Top/riscv.sv` — `RISCV` module wiring all stages.
+Synthesis top: `src/sources_1/Top/RiscvTop.sv` — `RiscvTop` SoC (pipeline core + UART + DebugUnit + MMCM @ 65 MHz).
 
 ### Pipeline Buffers
 
@@ -67,6 +72,8 @@ Top level: `src/sources_1/Top/riscv.sv` — `RISCV` module wiring all stages.
 | `DataMemory` | `src/sources_1/MEM/DataMemory.sv` |
 | `ForwardingUnit` | `src/sources_1/Hazard/ForwardingUnit.sv` |
 | `HazardDetectionUnit` | `src/sources_1/Hazard/HazardDetectionUnit.sv` |
+| `DebugUnit` | `src/sources_1/Debug/DebugUnit.sv` |
+| `Uart` / `UartRx` / `UartTx` / `BaudRateGenerator` | `src/sources_1/UART/` |
 
 ### Generic Building Blocks
 
@@ -114,8 +121,10 @@ Located in `src/sim_1/`. Run them via the `run-tests` skill or the CLI snippet b
 | `tb_IF_to_WB` | Full IF→ID→EX→MEM→WB integration (NOP-padded) | `src/sim_1/Integrador/tb_IF_to_WB.sv` |
 | `tb_branch` | BNE loop + JAL with flush (Stage 8) | `src/sim_1/Integrador/tb_branch.sv` |
 | `tb_lui_bug` | LUI regression (`rd = imm`) | `src/sim_1/EX/tb_lui_bug.sv` |
+| `tb_DebugUnit` | DebugUnit FSM (program load, run, step) | `src/sim_1/Debug/tb_DebugUnit.sv` |
+| `tb_RiscvDebug` | `RiscvTop` SoC end-to-end via UART/debug | `src/sim_1/Debug/tb_RiscvDebug.sv` |
 
-> Full suite: **123 tests passing across 11 testbenches.** Run via the `run-tests` skill or `bash .claude/skills/run-tests/scripts/run_tests.sh`.
+> Full suite: **129 tests passing across 13 testbenches.** Run via the `run-tests` skill or `bash .claude/skills/run-tests/scripts/run_tests.sh`.
 
 ---
 
@@ -150,12 +159,29 @@ xsim sim_snapshot --runall
 
 ---
 
+## Host Tooling (`tools/gui/`)
+
+Board bring-up and program loading are driven from the host with `tools/gui/`:
+
+- `assembler.py` — assembles RISC-V programs to `program.hex`.
+- `riscv_debug.py` / `gui.py` — debug GUI/CLI: load a program over UART, run continuously or step-by-step, and dump the PC and register/memory state.
+- `uart.py`, `isa.py` — serial transport and ISA tables.
+
+Managed with `uv`; see [`tools/gui/README.md`](tools/gui/README.md) for usage.
+
+---
+
+## Timing
+
+The design did **not** close timing at 100 MHz. An MMCM in `RiscvTop` clocks the whole SoC at **65 MHz** (WNS +0.319 ns), the max reliable frequency for the 32-bit datapath; 60/50 MHz also work with more margin. The Fmax ceiling (~75 MHz) is set by the dump path (core → DebugUnit), which crosses `posedge → negedge` and so gets only half a period — it is routing-dominated and unaffected by data width. Narrowing the datapath from 64→32 bits cut LUTs ~32% and raised the reliable Fmax from 60→65 MHz, but pushing past ~70 MHz explodes control sets (timing-driven register replication), saturating slices. To go higher you must register/re-clock the dump path or move data memory to BRAM. See `docs/reports/report-20260628.md` and `docs/reports/report-fmax-sweep-dw32-20260629.md`.
+
+---
+
 ## Known Issues / WIP
 
-- **UART and debug unit** not yet implemented (Stage 9). The `RISCV` module exposes hooks (`i_if_enable`, `i_mem_wr` / `i_mem_addr` / `i_mem_data`) for future program loading via the debug unit. There is no `HALT`/stop instruction yet (program termination is a Stage 9/10 concern).
-- **Operating modes** (continuous / step-by-step) not yet implemented (Stage 10).
-- **Timing analysis** (critical path, target frequency) pending (Stage 11).
 - **`DataMemory` is word-addressed**, an independent addressing axis from the byte-addressed PC — known debt if end-to-end byte addressing is desired.
+- Programs **must end with `HALT`** (custom-0 opcode `0x0000000B`); the loader zero-pads memory and zeros decode as NOPs. See `docs/CONSIDERACIONES.md` C-004.
+- The dump path is the timing bottleneck (see **Timing** above); it caps Fmax around 75 MHz regardless of datapath width.
 
 ---
 

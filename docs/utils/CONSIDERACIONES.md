@@ -297,3 +297,55 @@ recién se consolida en estado en el próximo flanco).
 > Convención estándar (regla de Cummings, *"Nonblocking Assignments in Verilog
 > Synthesis"*): secuencial → `<=`, combinacional → `=`. Mezclarlas es una *red flag*
 > en cualquier review y la causa más común de mismatch simulación–síntesis.
+
+---
+
+## C-006 — Volcado de los *latches intermedios* por UART
+
+**Fecha:** 2026-06-29
+**Estado:** resuelto / implementado
+**Etapas afectadas:** Debug (`DebugUnit`), Top (`riscv.sv`, `RiscvTop`), GUI
+
+### Discusión
+
+El TP exige que la Debug Unit envíe por UART, además de los 32 registros y la memoria
+de datos, **el contenido de los latches intermedios** (`docs/TRABAJO_FINAL_2025.md:132`).
+La implementación inicial (Stage 9b) sólo volcaba **PC + registros + memoria** — la
+misma sección que el MIPS de base —, dejando ese requisito sin cubrir.
+
+Los "latches intermedios" son los cuatro **buffers de pipeline** (`IF/ID`, `ID/EX`,
+`EX/MEM`, `MEM/WB`). Había que decidir **cómo** exponerlos y serializarlos.
+
+### Decisión
+
+Reutilizar el patrón ya existente de `SEND_REG` / `SEND_MEM` (índice + `msb_byte` +
+handshake `i_tx_done`) en vez de inventar un protocolo nuevo:
+
+1. **Enumeración plana indexada.** Cada campo de cada buffer es un índice (0..24,
+   `LATCH_COUNT = 25`). El core (`riscv.sv`) mapea el índice a la salida del buffer
+   correspondiente con un `always_comb` + `case`, zero-extendiendo a `DATA_WIDTH`.
+   **No se tocan los módulos de buffer** — sus salidas ya son wires en `riscv.sv`.
+2. **Control empaquetado.** Los bits de control de cada buffer se agrupan en un único
+   word `ctrl` por buffer (layout documentado en [`DEBUG_UNIT.md`](DEBUG_UNIT.md) §2),
+   en vez de un valor por bit. Mantiene el conteo y el tiempo de transferencia chicos
+   (25 × 4 = 100 bytes extra).
+3. **Cuarta sección del dump.** Se agrega el estado `SEND_LATCH` *después* de
+   `SEND_MEM` (`…→SEND_MEM→SEND_LATCH→r_prev`), para no alterar el prefijo
+   PC/registros/memoria que ya parseaban las herramientas. La GUI (`uart.py`,
+   `riscv_debug.py`, `gui.py`) se actualizó en lockstep (`LATCH_FIELDS`, `N_LATCH=25`).
+
+### Resultado
+
+- Suite completa: **132 passed, 0 failed**. `tb_DebugUnit` verifica byte a byte la
+  sección de latches con stubs; `tb_RiscvDebug` reconstruye latches reales tras HALT
+  (el buffer `MEM/WB` retiene `Halt=1`, las etapas previas quedan en NOP/0).
+- El one-hot de estados pasó de 8 a **9 bits**; como `o_state` son 8 LEDs,
+  `SEND_LATCH` comparte indicador con `SEND_MEM` (cosmético).
+
+### Nota de temporización
+
+El mux de latches es **otro camino de dump core→DebugUnit que cruza posedge→negedge**
+(como registros/memoria, ver [`reports/report-20260628.md`](../reports/report-20260628.md)).
+A 65 MHz hay margen y los buffers ya son salidas registradas, así que se espera que
+cierre. Si regresara el timing, registrar `i_latch_data` (Opción A del reporte: 1
+ciclo extra, irrelevante en un dump serie a 19200 baud).

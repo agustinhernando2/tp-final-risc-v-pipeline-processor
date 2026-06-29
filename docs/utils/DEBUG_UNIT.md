@@ -39,7 +39,7 @@ Cumple cuatro funciones:
 | **Carga de programa** | Recibe el binario byte a byte por UART, ensambla cada 4 bytes en una instrucción de 32 bits y la escribe en la `InstructionMemory` del core. |
 | **Ejecución continua** | Habilita el pipeline (`pipeline_enable=1`) y lo deja correr hasta detectar `HALT`. |
 | **Paso a paso** | Avanza **exactamente un ciclo** por comando y vuelve a congelar el core. |
-| **Volcado (dump)** | Lee el `PC`, los 32 registros y la memoria de datos, y los transmite de vuelta a la PC por UART. |
+| **Volcado (dump)** | Lee el `PC`, los 32 registros, la memoria de datos y el contenido de los **latches intermedios** (buffers de pipeline), y los transmite de vuelta a la PC por UART. |
 
 ```mermaid
 flowchart LR
@@ -86,13 +86,42 @@ Se envían **`IM_WORDS` instrucciones × 4 bytes** = `64 × 4 = 256 bytes`. La G
 
 ### Formato del dump (tras `0x04`, o automático al `HALT`)
 
-Siempre en este orden, cada valor de **8 bytes** (64 bits) MSB-first:
+Siempre en este orden, cada valor de **`NB_BYTES = DATA_WIDTH/8` bytes** MSB-first
+(con `DATA_WIDTH=32` → 4 bytes; los ejemplos de abajo usan el caso histórico de 8):
 
 ```
-PC (8 bytes)  →  reg[0] … reg[31] (32 × 8 bytes)  →  mem[0] … mem[DM_DEPTH-1] (64 × 8 bytes)
+PC  →  reg[0..31]  →  mem[0..DM_DEPTH-1]  →  latch[0..LATCH_COUNT-1]
 ```
 
-Total del dump = `8 + 32×8 + 64×8 = 8 + 256 + 512 = 776 bytes`.
+La **cuarta sección** (`latch[]`) son los **latches intermedios** de los cuatro
+buffers de pipeline. Cada índice es un campo almacenado, zero-extendido al ancho del
+valor del dump. El orden (debe coincidir entre `riscv.sv`, `DebugUnit.sv` y
+`tools/gui/uart.py:LATCH_FIELDS`) es:
+
+| Idx | Campo | Idx | Campo |
+|----:|-------|----:|-------|
+| 0 | `IF/ID.PC` | 13 | `EX/MEM.alu_result` |
+| 1 | `IF/ID.PC+4` | 14 | `EX/MEM.read_data_2` |
+| 2 | `IF/ID.instruction` | 15 | `EX/MEM.branch_target` |
+| 3 | `ID/EX.PC` | 16 | `EX/MEM.PC+4` |
+| 4 | `ID/EX.PC+4` | 17 | `EX/MEM.rd` |
+| 5 | `ID/EX.read_data_1` | 18 | `EX/MEM.funct3` |
+| 6 | `ID/EX.read_data_2` | 19 | `EX/MEM.ctrl` |
+| 7 | `ID/EX.immediate` | 20 | `MEM/WB.alu_result` |
+| 8 | `ID/EX.rs1` | 21 | `MEM/WB.mem_read_data` |
+| 9 | `ID/EX.rs2` | 22 | `MEM/WB.PC+4` |
+| 10 | `ID/EX.rd` | 23 | `MEM/WB.rd` |
+| 11 | `ID/EX.funct` (`{funct7_5,funct3}`) | 24 | `MEM/WB.ctrl` |
+| 12 | `ID/EX.ctrl` | | |
+
+**Layout de los words `ctrl`** (bit 0 = LSB):
+
+- `ID/EX.ctrl`  = `{Halt,LUI,JumpReg,Jump,Branch,MemToReg,MemWrite,MemRead,ALUOp[1:0],ALUSrc,RegWrite}`
+- `EX/MEM.ctrl` = `{zero,Halt,JumpReg,Jump,Branch,MemToReg,MemWrite,MemRead,RegWrite}`
+- `MEM/WB.ctrl` = `{Halt,Jump,MemToReg,RegWrite}`
+
+Total del dump (con `DATA_WIDTH=32`, `NB_BYTES=4`) =
+`(1 + 32 + 64 + 25) × 4 = 122 × 4 = 488 bytes`.
 
 ---
 
@@ -207,17 +236,22 @@ flowchart LR
 Los estados son **one-hot** (cada uno enciende un LED distinto en `o_state`):
 
 ```systemverilog
-typedef enum logic [7:0] {
-    INITIAL   = 8'b0000_0001,  // reposo: espera WRITE_IM o SEND_INFO
-    WRITE_IM  = 8'b0000_0010,  // recibiendo y escribiendo el programa
-    READY     = 8'b0000_0100,  // programa cargado: espera CONTINUE / STEP_BY_STEP
-    RUN       = 8'b0000_1000,  // ejecución continua hasta HALT
-    STEP_MODE = 8'b0001_0000,  // paso a paso: espera STEP / CONTINUE
-    SEND_PC   = 8'b0010_0000,  // transmitiendo el PC
-    SEND_REG  = 8'b0100_0000,  // transmitiendo el banco de registros
-    SEND_MEM  = 8'b1000_0000   // transmitiendo la memoria de datos
+typedef enum logic [8:0] {
+    INITIAL    = 9'b0_0000_0001,  // reposo: espera WRITE_IM o SEND_INFO
+    WRITE_IM   = 9'b0_0000_0010,  // recibiendo y escribiendo el programa
+    READY      = 9'b0_0000_0100,  // programa cargado: espera CONTINUE / STEP_BY_STEP
+    RUN        = 9'b0_0000_1000,  // ejecución continua hasta HALT
+    STEP_MODE  = 9'b0_0001_0000,  // paso a paso: espera STEP / CONTINUE
+    SEND_PC    = 9'b0_0010_0000,  // transmitiendo el PC
+    SEND_REG   = 9'b0_0100_0000,  // transmitiendo el banco de registros
+    SEND_MEM   = 9'b0_1000_0000,  // transmitiendo la memoria de datos
+    SEND_LATCH = 9'b1_0000_0000   // transmitiendo los latches intermedios
 } state_t;
 ```
+
+> `o_state` son **8 LEDs**, pero hay **9 estados**: `SEND_LATCH` (bit 8) comparte
+> indicador con `SEND_MEM` (bit 7) en los LEDs (`o_state = r_state[8] ? 8'h80 :
+> r_state[7:0]`). Es sólo cosmético; la FSM distingue los 9 estados internamente.
 
 ```mermaid
 stateDiagram-v2
@@ -233,9 +267,10 @@ stateDiagram-v2
     RUN      --> SEND_PC  : i_halt\nprev=READY
     STEP_MODE--> SEND_PC  : data==5 (STEP, enable=1 1 ciclo)\no data==4 (SEND_INFO) o i_halt
     STEP_MODE--> RUN      : rx_done & data==2 (CONTINUE)
-    SEND_PC  --> SEND_REG : 8 bytes enviados
-    SEND_REG --> SEND_MEM : 32 regs enviados
-    SEND_MEM --> [*]      : DM_DEPTH words enviados → vuelve a r_prev
+    SEND_PC   --> SEND_REG  : NB_BYTES enviados
+    SEND_REG  --> SEND_MEM  : 32 regs enviados
+    SEND_MEM  --> SEND_LATCH: DM_DEPTH words enviados
+    SEND_LATCH--> [*]       : LATCH_COUNT campos enviados → vuelve a r_prev
 ```
 
 La FSM es del tipo **Mealy parcial con registros de salida**: hay un bloque
@@ -388,12 +423,15 @@ SEND_REG: begin
 end
 ```
 
-- **`SEND_PC`** — 1 valor (`i_pc`), 8 bytes → `SEND_REG`.
-- **`SEND_REG`** — recorre `o_reg_addr = r_reg_idx` de 0 a 31, 8 bytes c/u. Como
+- **`SEND_PC`** — 1 valor (`i_pc`), `NB_BYTES` → `SEND_REG`.
+- **`SEND_REG`** — recorre `o_reg_addr = r_reg_idx` de 0 a 31, `NB_BYTES` c/u. Como
   `o_reg_addr` es combinacional desde `r_reg_idx`, el core devuelve `i_reg_data` del
   registro pedido. → `SEND_MEM`.
-- **`SEND_MEM`** — recorre `o_mem_data_addr = r_mem_idx` de 0 a `DM_DEPTH-1`, 8 bytes
-  c/u. → vuelve a `r_prev`.
+- **`SEND_MEM`** — recorre `o_mem_data_addr = r_mem_idx` de 0 a `DM_DEPTH-1`,
+  `NB_BYTES` c/u. → `SEND_LATCH`.
+- **`SEND_LATCH`** — recorre `o_latch_addr = r_latch_idx` de 0 a `LATCH_COUNT-1`,
+  `NB_BYTES` c/u. El core mapea cada índice a un campo de buffer con un mux
+  combinacional (`riscv.sv`, ver tabla de §2). → vuelve a `r_prev`.
 
 ```mermaid
 sequenceDiagram

@@ -136,6 +136,8 @@ class DebugGui(tk.Tk):
                                        ("reg", "hex", "dec"), ("reg", "hex", "valor"))
         self.mem_tv = self._make_table(bottom, "Memoria de datos",
                                        ("idx", "hex", "dec"), ("word", "hex", "valor"))
+        self.latch_tv = self._make_table(bottom, "Latches intermedios",
+                                         ("campo", "hex", "dec"), ("campo", "hex", "valor"))
         pc_frame = ttk.Labelframe(bottom, text="PC", padding=8)
         pc_frame.pack(side="left", fill="y", padx=4)
         self.pc_lbl = ttk.Label(pc_frame, text="—", font=("Courier New", 14, "bold"))
@@ -339,18 +341,21 @@ class DebugGui(tk.Tk):
         if error:
             self.log(f"Error leyendo el volcado: {error}", error=True)
             return
-        pc, regs, mem = result
-        self._show_dump(pc, regs, mem)
+        pc, regs, mem, latches = result
+        self._show_dump(pc, regs, mem, latches)
         self.log(f"Volcado recibido (PC = 0x{pc:016x}).")
 
-    def _show_dump(self, pc, regs, mem):
+    def _show_dump(self, pc, regs, mem, latches):
         self.pc_lbl.configure(text=f"0x{pc:016x}")
         self.reg_tv.delete(*self.reg_tv.get_children())
         for i, v in enumerate(regs):
-            self.reg_tv.insert("", "end", values=(f"x{i}", f"0x{v:016x}", v))
+            self.reg_tv.insert("", "end", values=(f"x{i}", f"0x{v:08x}", v))
         self.mem_tv.delete(*self.mem_tv.get_children())
         for i, v in enumerate(mem):
-            self.mem_tv.insert("", "end", values=(i, f"0x{v:016x}", v))
+            self.mem_tv.insert("", "end", values=(i, f"0x{v:08x}", v))
+        self.latch_tv.delete(*self.latch_tv.get_children())
+        for name, v in zip(uart.LATCH_FIELDS, latches):
+            self.latch_tv.insert("", "end", values=(name, f"0x{v:08x}", v))
 
     def _on_close(self):
         if self.uart is not None:

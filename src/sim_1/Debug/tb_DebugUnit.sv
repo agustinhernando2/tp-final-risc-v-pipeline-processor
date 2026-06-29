@@ -19,7 +19,10 @@ module tb_DebugUnit;
     localparam int IM_WORDS = 2;
     localparam int RB_DEPTH = 2;
     localparam int DM_DEPTH = 2;
-    localparam int DUMP_LEN = 8 + RB_DEPTH * 8 + DM_DEPTH * 8;  // 40
+    localparam int LATCH_COUNT = 4;
+    localparam int NB_LADDR = 3;
+    localparam int DUMP_LEN = 8 + RB_DEPTH * 8 + DM_DEPTH * 8 + LATCH_COUNT * 8;  // 72
+    localparam int LATCH_BASE = 8 + RB_DEPTH * 8 + DM_DEPTH * 8;
 
     logic        clk = 0;
     logic        reset;
@@ -38,6 +41,8 @@ module tb_DebugUnit;
     logic [31:0] mem_data_w;
     logic [ 4:0] reg_addr;
     logic [ 5:0] mem_data_addr;
+    logic [ 2:0] latch_addr;
+    logic [63:0] latch_data;
     logic        pipeline_enable;
     logic [ 7:0] state;
 
@@ -51,24 +56,30 @@ module tb_DebugUnit;
     function automatic logic [63:0] mem_stub(input int a);
         return 64'hB0B1_B2B3_B4B5_0000 + a;
     endfunction
+    function automatic logic [63:0] latch_stub(input int a);
+        return 64'hC0C1_C2C3_C4C5_0000 + a;
+    endfunction
     localparam logic [63:0] PC_VAL = 64'h1122_3344_5566_7788;
 
-    assign pc       = PC_VAL;
-    assign reg_data = reg_stub(reg_addr);
-    assign mem_data = mem_stub(mem_data_addr);
+    assign pc         = PC_VAL;
+    assign reg_data   = reg_stub(reg_addr);
+    assign mem_data   = mem_stub(mem_data_addr);
+    assign latch_data = latch_stub(latch_addr);
 
     // --- DUT -----------------------------------------------------------------
     DebugUnit #(
-        .NB_DATA   (8),
-        .NB_PC     (64),
-        .DATA_WIDTH(64),
-        .NB_REG    (5),
-        .NB_IADDR  (8),
-        .NB_INST   (32),
-        .NB_DADDR  (6),
-        .IM_WORDS  (IM_WORDS),
-        .RB_DEPTH  (RB_DEPTH),
-        .DM_DEPTH  (DM_DEPTH)
+        .NB_DATA    (8),
+        .NB_PC      (64),
+        .DATA_WIDTH (64),
+        .NB_REG     (5),
+        .NB_IADDR   (8),
+        .NB_INST    (32),
+        .NB_DADDR   (6),
+        .IM_WORDS   (IM_WORDS),
+        .RB_DEPTH   (RB_DEPTH),
+        .DM_DEPTH   (DM_DEPTH),
+        .LATCH_COUNT(LATCH_COUNT),
+        .NB_LADDR   (NB_LADDR)
     ) DUT (
         .i_clk            (clk),
         .i_reset          (reset),
@@ -76,6 +87,7 @@ module tb_DebugUnit;
         .i_pc             (pc),
         .i_reg_data       (reg_data),
         .i_mem_data       (mem_data),
+        .i_latch_data     (latch_data),
         .i_rx_done        (rx_done),
         .i_tx_done        (tx_done),
         .i_rx_data        (rx_data),
@@ -86,6 +98,7 @@ module tb_DebugUnit;
         .o_imem_data      (mem_data_w),
         .o_reg_addr       (reg_addr),
         .o_mem_data_addr  (mem_data_addr),
+        .o_latch_addr     (latch_addr),
         .o_pipeline_enable(pipeline_enable),
         .o_state          (state)
     );
@@ -209,6 +222,12 @@ module tb_DebugUnit;
         for (int k = 0; k < 8; k++) begin
             exp_byte = mem_stub(j) >> ((7 - k) * 8);
             check8($sformatf("dump MEM%0d byte %0d", j, k), dump[8+RB_DEPTH*8+j*8+k], exp_byte);
+        end
+        // Latches intermedios (índice 0..LATCH_COUNT-1, MSB-first, 8 bytes c/u)
+        for (int j = 0; j < LATCH_COUNT; j++)
+        for (int k = 0; k < 8; k++) begin
+            exp_byte = latch_stub(j) >> ((7 - k) * 8);
+            check8($sformatf("dump LATCH%0d byte %0d", j, k), dump[LATCH_BASE+j*8+k], exp_byte);
         end
 
         // ---------------- Test 3: HALT desde RUN dispara dump ----------------

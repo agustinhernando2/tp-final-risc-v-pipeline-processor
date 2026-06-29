@@ -28,16 +28,18 @@
 //   baudios de la UART (sigue ~19200, error <0.3%).
 // =============================================================================
 module RiscvTop #(
-    parameter int CLK        = 65_000_000,  // reloj del SoC tras el MMCM [Hz]
-    parameter int BAUDRATE   = 19200,       // tasa de baudios
-    parameter int NB_PC      = 64,
-    parameter int NB_INST    = 32,
-    parameter int NB_REG     = 5,
-    parameter int DATA_WIDTH = 32,
-    parameter int NB_IADDR   = 8,           // memoria de instrucciones: 256 words
-    parameter int NB_DADDR   = 6,           // memoria de datos: 64 words
-    parameter int IM_WORDS   = 64,          // tamaño de programa (coincide con la GUI)
-    parameter int DM_DEPTH   = 64           // words de mem de datos en el dump
+    parameter int CLK         = 65_000_000,  // reloj del SoC tras el MMCM [Hz]
+    parameter int BAUDRATE    = 19200,       // tasa de baudios
+    parameter int NB_PC       = 64,
+    parameter int NB_INST     = 32,
+    parameter int NB_REG      = 5,
+    parameter int DATA_WIDTH  = 32,
+    parameter int NB_IADDR    = 8,           // memoria de instrucciones: 256 words
+    parameter int NB_DADDR    = 6,           // memoria de datos: 64 words
+    parameter int IM_WORDS    = 64,          // tamaño de programa (coincide con la GUI)
+    parameter int DM_DEPTH    = 64,          // words de mem de datos en el dump
+    parameter int LATCH_COUNT = 25,          // campos de latches intermedios en el dump
+    parameter int NB_LADDR    = 5            // bits de dirección del dump de latches
 ) (
     input  logic       i_clk,
     input  logic       i_reset,
@@ -135,9 +137,11 @@ module RiscvTop #(
     logic [   NB_INST-1:0] w_imem_data;
     logic [    NB_REG-1:0] w_dbg_reg_addr;
     logic [  NB_DADDR-1:0] w_dbg_mem_addr;
+    logic [  NB_LADDR-1:0] w_dbg_latch_addr;
     logic [     NB_PC-1:0] w_pc;
     logic [DATA_WIDTH-1:0] w_dbg_reg_data;
     logic [DATA_WIDTH-1:0] w_dbg_mem_data;
+    logic [DATA_WIDTH-1:0] w_dbg_latch_data;
     logic                  w_halt;
 
     // -------------------------------------------------------------------------
@@ -163,16 +167,18 @@ module RiscvTop #(
     // Debug Unit
     // -------------------------------------------------------------------------
     DebugUnit #(
-        .NB_DATA   (8),
-        .NB_PC     (NB_PC),
-        .DATA_WIDTH(DATA_WIDTH),
-        .NB_REG    (NB_REG),
-        .NB_IADDR  (NB_IADDR),
-        .NB_INST   (NB_INST),
-        .NB_DADDR  (NB_DADDR),
-        .IM_WORDS  (IM_WORDS),
-        .RB_DEPTH  (2 ** NB_REG),
-        .DM_DEPTH  (DM_DEPTH)
+        .NB_DATA    (8),
+        .NB_PC      (NB_PC),
+        .DATA_WIDTH (DATA_WIDTH),
+        .NB_REG     (NB_REG),
+        .NB_IADDR   (NB_IADDR),
+        .NB_INST    (NB_INST),
+        .NB_DADDR   (NB_DADDR),
+        .IM_WORDS   (IM_WORDS),
+        .RB_DEPTH   (2 ** NB_REG),
+        .DM_DEPTH   (DM_DEPTH),
+        .LATCH_COUNT(LATCH_COUNT),
+        .NB_LADDR   (NB_LADDR)
     ) u_debug (
         .i_clk            (w_clk),
         .i_reset          (w_rst),
@@ -180,6 +186,7 @@ module RiscvTop #(
         .i_pc             (w_pc),
         .i_reg_data       (w_dbg_reg_data),
         .i_mem_data       (w_dbg_mem_data),
+        .i_latch_data     (w_dbg_latch_data),
         .i_rx_done        (w_rx_done),
         .i_tx_done        (w_tx_done),
         .i_rx_data        (w_rx_data),
@@ -190,6 +197,7 @@ module RiscvTop #(
         .o_imem_data      (w_imem_data),
         .o_reg_addr       (w_dbg_reg_addr),
         .o_mem_data_addr  (w_dbg_mem_addr),
+        .o_latch_addr     (w_dbg_latch_addr),
         .o_pipeline_enable(w_pipeline_enable),
         .o_state          (o_led)
     );
@@ -202,20 +210,23 @@ module RiscvTop #(
         .NB_INST   (NB_INST),
         .NB_REG    (NB_REG),
         .DATA_WIDTH(DATA_WIDTH),
-        .NB_ADDR   (NB_IADDR)
+        .NB_ADDR   (NB_IADDR),
+        .NB_LADDR  (NB_LADDR)
     ) u_core (
-        .i_clk         (w_clk),
-        .i_reset       (w_rst),
-        .i_if_enable   (w_pipeline_enable),
-        .i_imem_wr     (w_imem_wr),
-        .i_imem_addr   (w_imem_addr),
-        .i_imem_data   (w_imem_data),
-        .o_PC          (w_pc),
-        .o_halt        (w_halt),
-        .i_dbg_reg_addr(w_dbg_reg_addr),
-        .o_dbg_reg_data(w_dbg_reg_data),
-        .i_dbg_mem_addr(w_dbg_mem_addr),
-        .o_dbg_mem_data(w_dbg_mem_data)
+        .i_clk           (w_clk),
+        .i_reset         (w_rst),
+        .i_if_enable     (w_pipeline_enable),
+        .i_imem_wr       (w_imem_wr),
+        .i_imem_addr     (w_imem_addr),
+        .i_imem_data     (w_imem_data),
+        .o_PC            (w_pc),
+        .o_halt          (w_halt),
+        .i_dbg_reg_addr  (w_dbg_reg_addr),
+        .o_dbg_reg_data  (w_dbg_reg_data),
+        .i_dbg_mem_addr  (w_dbg_mem_addr),
+        .o_dbg_mem_data  (w_dbg_mem_data),
+        .i_dbg_latch_addr(w_dbg_latch_addr),
+        .o_dbg_latch_data(w_dbg_latch_data)
     );
 
 endmodule

@@ -12,13 +12,15 @@
 //   - Ejecución continua: corre el pipeline hasta detectar HALT (i_halt) y
 //     después vuelca el estado.
 //   - Paso a paso: ejecuta exactamente un ciclo por comando y vuelca el estado.
-//   - Volcado (dump): transmite PC, los 32 registros y la memoria de datos.
+//   - Volcado (dump): transmite PC, los 32 registros, la memoria de datos y el
+//     contenido de los latches intermedios (buffers IF/ID, ID/EX, EX/MEM, MEM/WB).
 //
 // Protocolo UART (8N1, MSB-first / big-endian), compatible con la GUI Python:
 //   Comandos (1 byte): 1=WRITE_IM, 2=CONTINUE, 3=STEP_BY_STEP, 4=SEND_INFO, 5=STEP
 //   Carga: tras 0x01, IM_WORDS instrucciones × 4 bytes (primero el byte más
 //          significativo de cada instrucción).
-//   Dump : PC (8 bytes) -> 32 registros × 8 bytes -> DM_DEPTH words × 8 bytes.
+//   Dump : PC -> 32 registros -> DM_DEPTH words de mem -> LATCH_COUNT latches,
+//          cada valor a NB_BYTES = DATA_WIDTH/8 bytes, MSB-first.
 //
 // Nota de temporización: la FSM corre en **flanco descendente** del reloj. El
 // pipeline corre en flanco de subida y muestrea o_pipeline_enable / o_imem_wr;
@@ -36,16 +38,19 @@ module DebugUnit #(
     parameter int NB_DADDR = 6,  // bits de dirección de la memoria de datos (64 words)
     parameter int IM_WORDS = 64,  // instrucciones del programa (debe coincidir con la GUI)
     parameter int RB_DEPTH = 32,  // cantidad de registros a volcar
-    parameter int DM_DEPTH = 64  // cantidad de words de memoria de datos a volcar
+    parameter int DM_DEPTH = 64,  // cantidad de words de memoria de datos a volcar
+    parameter int LATCH_COUNT = 25,  // campos de latches intermedios a volcar
+    parameter int NB_LADDR = 5  // bits de dirección del dump de latches (>= clog2(LATCH_COUNT))
 ) (
     input logic i_clk,
     input logic i_reset,
 
     // Estado del procesador
-    input logic                  i_halt,      // HALT llegó a MEM (fin de programa)
-    input logic [     NB_PC-1:0] i_pc,        // PC actual
-    input logic [DATA_WIDTH-1:0] i_reg_data,  // registro leído en o_reg_addr
-    input logic [DATA_WIDTH-1:0] i_mem_data,  // word de mem de datos leído en o_mem_data_addr
+    input logic                  i_halt,       // HALT llegó a MEM (fin de programa)
+    input logic [     NB_PC-1:0] i_pc,         // PC actual
+    input logic [DATA_WIDTH-1:0] i_reg_data,   // registro leído en o_reg_addr
+    input logic [DATA_WIDTH-1:0] i_mem_data,   // word de mem de datos leído en o_mem_data_addr
+    input logic [DATA_WIDTH-1:0] i_latch_data, // campo de latch leído en o_latch_addr
 
     // UART
     input  logic               i_rx_done,  // byte recibido
@@ -60,8 +65,9 @@ module DebugUnit #(
     output logic [ NB_INST-1:0] o_imem_data,  // instrucción ensamblada (32 bits)
 
     // Direcciones de lectura para el dump
-    output logic [  NB_REG-1:0] o_reg_addr,      // registro a leer
-    output logic [NB_DADDR-1:0] o_mem_data_addr, // word de mem de datos a leer
+    output logic [  NB_REG-1:0] o_reg_addr,       // registro a leer
+    output logic [NB_DADDR-1:0] o_mem_data_addr,  // word de mem de datos a leer
+    output logic [NB_LADDR-1:0] o_latch_addr,     // campo de latch a leer
 
     // Control del pipeline
     output logic o_pipeline_enable,  // 1 = el core avanza; 0 = congelado
@@ -84,15 +90,16 @@ module DebugUnit #(
     // -------------------------------------------------------------------------
     // Estados (one-hot: cada estado enciende un LED distinto)
     // -------------------------------------------------------------------------
-    typedef enum logic [7:0] {
-        INITIAL   = 8'b0000_0001,  // reposo: espera WRITE_IM o SEND_INFO
-        WRITE_IM  = 8'b0000_0010,  // recibiendo y escribiendo el programa
-        READY     = 8'b0000_0100,  // programa cargado: espera CONTINUE / STEP_BY_STEP
-        RUN       = 8'b0000_1000,  // ejecución continua hasta HALT
-        STEP_MODE = 8'b0001_0000,  // paso a paso: espera STEP / CONTINUE
-        SEND_PC   = 8'b0010_0000,  // transmitiendo el PC
-        SEND_REG  = 8'b0100_0000,  // transmitiendo el banco de registros
-        SEND_MEM  = 8'b1000_0000   // transmitiendo la memoria de datos
+    typedef enum logic [8:0] {
+        INITIAL    = 9'b0_0000_0001,  // reposo: espera WRITE_IM o SEND_INFO
+        WRITE_IM   = 9'b0_0000_0010,  // recibiendo y escribiendo el programa
+        READY      = 9'b0_0000_0100,  // programa cargado: espera CONTINUE / STEP_BY_STEP
+        RUN        = 9'b0_0000_1000,  // ejecución continua hasta HALT
+        STEP_MODE  = 9'b0_0001_0000,  // paso a paso: espera STEP / CONTINUE
+        SEND_PC    = 9'b0_0010_0000,  // transmitiendo el PC
+        SEND_REG   = 9'b0_0100_0000,  // transmitiendo el banco de registros
+        SEND_MEM   = 9'b0_1000_0000,  // transmitiendo la memoria de datos
+        SEND_LATCH = 9'b1_0000_0000   // transmitiendo los latches intermedios
     } state_t;
 
     // -------------------------------------------------------------------------
@@ -113,6 +120,7 @@ module DebugUnit #(
     logic [2:0] r_byte_idx, w_next_byte_idx;  // byte dentro del valor (0..7)
     logic [NB_REG-1:0] r_reg_idx, w_next_reg_idx;  // registro actual (0..31)
     logic [NB_DADDR-1:0] r_mem_idx, w_next_mem_idx;  // word actual (0..63)
+    logic [NB_LADDR-1:0] r_latch_idx, w_next_latch_idx;  // campo de latch actual (0..LATCH_COUNT-1)
 
     // UART / control
     logic r_tx_start, w_next_tx_start;
@@ -144,6 +152,7 @@ module DebugUnit #(
             r_byte_idx        <= '0;
             r_reg_idx         <= '0;
             r_mem_idx         <= '0;
+            r_latch_idx       <= '0;
             r_tx_start        <= 1'b0;
             r_tx_data         <= '0;
             r_pipeline_enable <= 1'b0;
@@ -159,6 +168,7 @@ module DebugUnit #(
             r_byte_idx        <= w_next_byte_idx;
             r_reg_idx         <= w_next_reg_idx;
             r_mem_idx         <= w_next_mem_idx;
+            r_latch_idx       <= w_next_latch_idx;
             r_tx_start        <= w_next_tx_start;
             r_tx_data         <= w_next_tx_data;
             r_pipeline_enable <= w_next_pipeline_enable;
@@ -181,6 +191,7 @@ module DebugUnit #(
         w_next_byte_idx        = r_byte_idx;
         w_next_reg_idx         = r_reg_idx;
         w_next_mem_idx         = r_mem_idx;
+        w_next_latch_idx       = r_latch_idx;
         w_next_tx_start        = r_tx_start;
         w_next_tx_data         = r_tx_data;
         w_next_pipeline_enable = r_pipeline_enable;
@@ -336,10 +347,32 @@ module DebugUnit #(
                     if (r_byte_idx == 3'(NB_BYTES - 1)) begin
                         w_next_byte_idx = '0;
                         if (r_mem_idx == NB_DADDR'(DM_DEPTH - 1)) begin
-                            w_next_mem_idx = '0;
-                            w_next_state   = r_prev;  // vuelve al estado previo
+                            w_next_mem_idx   = '0;
+                            w_next_latch_idx = '0;
+                            w_next_state     = SEND_LATCH;  // sigue con los latches
                         end else begin
                             w_next_mem_idx = r_mem_idx + 1'b1;
+                        end
+                    end else begin
+                        w_next_byte_idx = r_byte_idx + 1'b1;
+                    end
+                end
+            end
+
+            // --- Dump: latches intermedios × NB_BYTES bytes --------------
+            SEND_LATCH: begin
+                w_next_pipeline_enable = 1'b0;
+                w_next_tx_start        = 1'b1;
+                w_next_tx_data         = msb_byte(i_latch_data, r_byte_idx);
+                if (i_tx_done) begin
+                    w_next_tx_start = 1'b0;
+                    if (r_byte_idx == 3'(NB_BYTES - 1)) begin
+                        w_next_byte_idx = '0;
+                        if (r_latch_idx == NB_LADDR'(LATCH_COUNT - 1)) begin
+                            w_next_latch_idx = '0;
+                            w_next_state     = r_prev;  // vuelve al estado previo
+                        end else begin
+                            w_next_latch_idx = r_latch_idx + 1'b1;
                         end
                     end else begin
                         w_next_byte_idx = r_byte_idx + 1'b1;
@@ -361,7 +394,9 @@ module DebugUnit #(
     assign o_imem_data       = r_im_data;
     assign o_reg_addr        = r_reg_idx;
     assign o_mem_data_addr   = r_mem_idx;
+    assign o_latch_addr      = r_latch_idx;
     assign o_pipeline_enable = r_pipeline_enable;
-    assign o_state           = r_state;
+    // o_state son 8 LEDs; SEND_LATCH (bit 8) comparte indicador con SEND_MEM (bit 7).
+    assign o_state           = r_state[8] ? 8'b1000_0000 : r_state[7:0];
 
 endmodule

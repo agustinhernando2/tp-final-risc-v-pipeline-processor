@@ -22,7 +22,10 @@ module tb_RiscvDebug;
     localparam int IM_WORDS = 8;
     localparam int RB_DEPTH = 8;  // volcamos x0..x7 (alcanza para x1,x2,x3)
     localparam int DM_DEPTH = 2;
-    localparam int DUMP_LEN = 8 + RB_DEPTH * 8 + DM_DEPTH * 8;
+    localparam int LATCH_COUNT = 25;  // campos de latches intermedios
+    localparam int NB_LADDR = 5;
+    localparam int DUMP_LEN = 8 + RB_DEPTH * 8 + DM_DEPTH * 8 + LATCH_COUNT * 8;
+    localparam int LATCH_BASE = 8 + RB_DEPTH * 8 + DM_DEPTH * 8;  // offset del bloque de latches
 
     logic        clk = 0;
     logic        reset;
@@ -41,9 +44,11 @@ module tb_RiscvDebug;
     logic [31:0] mem_data;
     logic [ 4:0] dbg_reg_addr;
     logic [ 5:0] dbg_mem_addr;
+    logic [ 4:0] dbg_latch_addr;
     logic [63:0] pc;
     logic [63:0] dbg_reg_data;
     logic [63:0] dbg_mem_data;
+    logic [63:0] dbg_latch_data;
     logic        halt;
     logic [ 7:0] state;
 
@@ -56,7 +61,9 @@ module tb_RiscvDebug;
         .NB_DADDR(6),
         .IM_WORDS(IM_WORDS),
         .RB_DEPTH(RB_DEPTH),
-        .DM_DEPTH(DM_DEPTH)
+        .DM_DEPTH(DM_DEPTH),
+        .LATCH_COUNT(LATCH_COUNT),
+        .NB_LADDR(NB_LADDR)
     ) u_debug (
         .i_clk(clk),
         .i_reset(reset),
@@ -64,6 +71,7 @@ module tb_RiscvDebug;
         .i_pc(pc),
         .i_reg_data(dbg_reg_data),
         .i_mem_data(dbg_mem_data),
+        .i_latch_data(dbg_latch_data),
         .i_rx_done(rx_done),
         .i_tx_done(tx_done),
         .i_rx_data(rx_data),
@@ -74,6 +82,7 @@ module tb_RiscvDebug;
         .o_imem_data(mem_data),
         .o_reg_addr(dbg_reg_addr),
         .o_mem_data_addr(dbg_mem_addr),
+        .o_latch_addr(dbg_latch_addr),
         .o_pipeline_enable(pipeline_enable),
         .o_state(state)
     );
@@ -83,7 +92,8 @@ module tb_RiscvDebug;
         .NB_INST(32),
         .NB_REG(5),
         .DATA_WIDTH(64),
-        .NB_ADDR(8)
+        .NB_ADDR(8),
+        .NB_LADDR(NB_LADDR)
     ) u_core (
         .i_clk(clk),
         .i_reset(reset),
@@ -96,7 +106,9 @@ module tb_RiscvDebug;
         .i_dbg_reg_addr(dbg_reg_addr),
         .o_dbg_reg_data(dbg_reg_data),
         .i_dbg_mem_addr(dbg_mem_addr),
-        .o_dbg_mem_data(dbg_mem_data)
+        .o_dbg_mem_data(dbg_mem_data),
+        .i_dbg_latch_addr(dbg_latch_addr),
+        .o_dbg_latch_data(dbg_latch_data)
     );
 
     always #5 clk = ~clk;
@@ -132,6 +144,14 @@ module tb_RiscvDebug;
         logic [63:0] v;
         v = '0;
         for (int k = 0; k < 8; k++) v = (v << 8) | dump[8+j*8+k];
+        return v;
+    endfunction
+
+    // Reconstruye el campo de latch j (índice del mapa de SEND_LATCH) del dump.
+    function automatic logic [63:0] latch_from_dump(input int j);
+        logic [63:0] v;
+        v = '0;
+        for (int k = 0; k < 8; k++) v = (v << 8) | dump[LATCH_BASE+j*8+k];
         return v;
     endfunction
 
@@ -173,6 +193,15 @@ module tb_RiscvDebug;
         check64("x2", reg_from_dump(2), 64'd3);
         check64("x3 = x1 + x2", reg_from_dump(3), 64'd8);
         check64("x0 hardwired 0", reg_from_dump(0), 64'd0);
+
+        // Latches intermedios: con el pipeline drenado tras HALT, el buffer MEM/WB
+        // retiene la instrucción HALT (Halt=1, resto del control en 0). El word de
+        // control MEM/WB (índice 24) = {Halt,Jump,MemToReg,RegWrite} = 4'b1000 = 8.
+        check64("MEM/WB ctrl: HALT presente", latch_from_dump(24), 64'd8);
+        // Las etapas previas quedaron con NOPs (relleno de ceros): IF/ID.instruction
+        // (índice 2) y el control ID/EX (índice 12) deben ser 0.
+        check64("IF/ID.instruction = NOP", latch_from_dump(2), 64'd0);
+        check64("ID/EX ctrl = 0 (drenado)", latch_from_dump(12), 64'd0);
 
         $display("----------------------------------------");
         $display("pass=%0d fail=%0d", pass_count, fail_count);

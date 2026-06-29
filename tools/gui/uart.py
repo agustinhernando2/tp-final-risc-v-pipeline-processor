@@ -10,8 +10,8 @@ Implementa el protocolo de la DebugUnit (src/sources_1/Debug/DebugUnit.sv):
       5 = STEP           ejecutar un ciclo
 
   Carga: tras 0x01 se envían IM_WORDS instrucciones × 4 bytes, MSB-first.
-  Dump : PC (4 bytes) -> 32 registros × 4 bytes -> DM_DEPTH words × 4 bytes,
-         todo MSB-first / big-endian.
+  Dump : PC (4 bytes) -> 32 registros × 4 bytes -> DM_DEPTH words × 4 bytes ->
+         N_LATCH latches intermedios × 4 bytes, todo MSB-first / big-endian.
 
 Config serie: 19200 8N1 (igual que el MIPS de base, para reusar herramientas).
 
@@ -37,6 +37,21 @@ N_MEM      = 64    # words de memoria de datos volcados
 WORD_BYTES = 4     # 32 bits por valor del dump (DATA_WIDTH=32)
 PC_BYTES   = 4     # el dump del PC usa NB_BYTES=DATA_WIDTH/8 -> 4 bytes (los 32 bits
                    # bajos del PC; NB_PC=64 pero la FSM dumpea a ancho de valor)
+
+# Latches intermedios: un valor (WORD_BYTES) por campo, en el orden del mux de
+# riscv.sv / SEND_LATCH de DebugUnit.sv. N_LATCH = len(LATCH_FIELDS) debe coincidir
+# con LATCH_COUNT del firmware (25). Cada nombre etiqueta el campo en la GUI/CLI.
+LATCH_FIELDS = [
+    "IF/ID.PC", "IF/ID.PC+4", "IF/ID.instruction",
+    "ID/EX.PC", "ID/EX.PC+4", "ID/EX.read_data_1", "ID/EX.read_data_2",
+    "ID/EX.immediate", "ID/EX.rs1", "ID/EX.rs2", "ID/EX.rd", "ID/EX.funct",
+    "ID/EX.ctrl",
+    "EX/MEM.alu_result", "EX/MEM.read_data_2", "EX/MEM.branch_target",
+    "EX/MEM.PC+4", "EX/MEM.rd", "EX/MEM.funct3", "EX/MEM.ctrl",
+    "MEM/WB.alu_result", "MEM/WB.mem_read_data", "MEM/WB.PC+4", "MEM/WB.rd",
+    "MEM/WB.ctrl",
+]
+N_LATCH = len(LATCH_FIELDS)  # 25 (debe coincidir con LATCH_COUNT en RiscvTop.sv)
 
 
 class Uart:
@@ -80,12 +95,13 @@ class Uart:
         return value
 
     def receive_dump(self):
-        """Lee el dump completo. Devuelve (pc, regs[N_REG], mem[N_MEM]).
+        """Lee el dump completo. Devuelve (pc, regs[N_REG], mem[N_MEM], latches[N_LATCH]).
 
-        El PC son PC_BYTES (8, NB_PC=64); cada registro/word de memoria son
-        WORD_BYTES (4, DATA_WIDTH=32).
+        El PC son PC_BYTES; cada registro / word de memoria / latch son WORD_BYTES.
+        El orden de los latches es el de LATCH_FIELDS.
         """
         pc = self._read_word(PC_BYTES)
         regs = [self._read_word() for _ in range(N_REG)]
         mem = [self._read_word() for _ in range(N_MEM)]
-        return pc, regs, mem
+        latches = [self._read_word() for _ in range(N_LATCH)]
+        return pc, regs, mem, latches

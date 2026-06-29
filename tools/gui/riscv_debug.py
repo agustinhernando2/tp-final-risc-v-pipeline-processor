@@ -29,7 +29,8 @@ import sys
 
 try:
     import assembler
-    from uart import Uart, CMD_CONTINUE, CMD_SEND_INFO, CMD_STEP_BY_STEP, CMD_STEP
+    from uart import (Uart, CMD_CONTINUE, CMD_SEND_INFO, CMD_STEP_BY_STEP,
+                      CMD_STEP, LATCH_FIELDS)
 except ImportError:
     sys.exit("No se encontró uart.py/assembler.py (corré el script desde tools/gui/) o falta pyserial.")
 
@@ -58,19 +59,22 @@ def load_program(path):
     return parse_hex_program(path)
 
 
-def print_dump(pc, regs, mem):
+def print_dump(pc, regs, mem, latches):
     print(f"PC = 0x{pc:016x}")
     print("Registros:")
     for i, v in enumerate(regs):
-        print(f"  x{i:<2} = 0x{v:016x} ({v})")
+        print(f"  x{i:<2} = 0x{v:08x} ({v})")
     print("Memoria de datos (words distintos de 0):")
     any_mem = False
     for i, v in enumerate(mem):
         if v != 0:
-            print(f"  [{i:<2}] = 0x{v:016x} ({v})")
+            print(f"  [{i:<2}] = 0x{v:08x} ({v})")
             any_mem = True
     if not any_mem:
         print("  (todo en 0)")
+    print("Latches intermedios (buffers de pipeline):")
+    for name, v in zip(LATCH_FIELDS, latches):
+        print(f"  {name:<22} = 0x{v:08x} ({v})")
 
 
 def main():
@@ -106,8 +110,8 @@ def main():
             u.send_command(CMD_CONTINUE)
 
         print("Esperando dump...")
-        pc, regs, mem = u.receive_dump()
-        print_dump(pc, regs, mem)
+        pc, regs, mem, latches = u.receive_dump()
+        print_dump(pc, regs, mem, latches)
     finally:
         u.close()
 
