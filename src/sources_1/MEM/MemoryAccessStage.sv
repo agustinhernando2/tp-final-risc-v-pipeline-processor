@@ -44,12 +44,17 @@ module MemoryAccessStage #(
     // BEQ: taken when zero=1 (funct3[0]=0), BNE: taken when zero=0 (funct3[0]=1)
     assign o_PCSrc = (i_Branch & (i_zero ^ i_funct3[0])) | i_Jump;
 
-    // JALR uses ALU result (rs1 + imm); JAL/branch use precomputed branch_target
+    // JALR uses ALU result (rs1 + imm); JAL/branch use precomputed branch_target.
+    // The ALU result is DATA_WIDTH wide and the PC is NB_PC wide; cast to PC width
+    // (zero-extends when DATA_WIDTH < NB_PC, e.g. 32-bit datapath with 64-bit PC).
+    logic [NB_PC-1:0] w_alu_pc_target;
+    assign w_alu_pc_target = NB_PC'(i_alu_result);
+
     mux1_2 #(
         .DATA_WIDTH(NB_PC)
     ) u_pc_branch_mux (
         .i_a  (i_branch_target),
-        .i_b  (i_alu_result[NB_PC-1:0]),
+        .i_b  (w_alu_pc_target),
         .i_sel(i_JumpReg),
         .o_out(o_PCBranch)
     );
