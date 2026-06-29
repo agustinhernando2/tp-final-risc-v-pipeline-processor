@@ -35,9 +35,9 @@ The `program.hex` file loaded into `InstructionMemory` at simulation start must 
 |-------|--------|------|
 | IF | `InstructionFetch` | `src/sources_1/IF/InstructionFetch.sv` |
 | ID | `instructionDecode` | `src/sources_1/ID/InstructionDecode.sv` |
-| EX | *(pending)* | — |
-| MEM | *(pending)* | — |
-| WB | *(pending)* | — |
+| EX | `ExecuteStage` | `src/sources_1/EX/ExecuteStage.sv` |
+| MEM | `MemoryAccessStage` | `src/sources_1/MEM/MemoryAccessStage.sv` |
+| WB | `WriteBackStage` | `src/sources_1/WB/WriteBackStage.sv` |
 
 **Pipeline buffers** (in `src/sources_1/Buffers/`):
 - `IF_ID_Buffer` — latches PC+1 and the fetched instruction between IF and ID.
@@ -50,7 +50,8 @@ The `program.hex` file loaded into `InstructionMemory` at simulation start must 
 - `Adder` — parameterized combinational adder (used for PC+1 increment).
 - `mux1_2`, `mux2_4`, `mux3_8` — parameterized 2-, 4-, and 8-input muxes.
 
-**Top level:** `src/sources_1/Top/riscv.sv` — `RISCV` module skeleton (clock, reset, UART RX/TX). Pipeline stages are instantiated here.
+**Pipeline core:** `src/sources_1/Top/riscv.sv` — `RISCV` module (clock, reset, UART RX/TX); all pipeline stages are instantiated here.
+**Synthesis top:** `src/sources_1/Top/RiscvTop.sv` — `RiscvTop` SoC = pipeline core + `Uart` (`src/sources_1/UART/`) + `DebugUnit` (`src/sources_1/Debug/DebugUnit.sv`) + MMCM clocking the SoC at 65 MHz.
 
 ### Key Design Conventions
 
@@ -62,12 +63,12 @@ The `program.hex` file loaded into `InstructionMemory` at simulation start must 
 
 ### Testbenches
 
-Located in `src/sim_1/`:
-- `IF/tb_IF.sv` — tests `InstructionFetch` standalone; loads program from `program.hex`.
-- `IF/tb_IF_ID_Buffer.sv` — tests the IF/ID pipeline register.
-- `IF/tb_adder.sv` — tests the generic adder.
-- `Integrador/tb_IF_ID.sv` — integration test connecting IF → IF_ID_Buffer.
-- `ID/tb_RegisterFile.sv` — tests `RegisterFile`: x0 hardwired zero, write/read back, reset clears all registers.
+Located in `src/sim_1/` (**129 tests across 13 testbenches**, all passing). Run via the `run-tests` skill or `bash .claude/skills/run-tests/scripts/run_tests.sh`:
+- `ID/tb_RegisterFile.sv`, `ID/tb_ImmediateExtend.sv`, `ID/tb_ControlUnit.sv` — ID sub-modules.
+- `EX/tb_ALU.sv`, `EX/tb_ExecuteStage.sv`, `EX/tb_lui_bug.sv` — EX stage + LUI regression.
+- `MEM/tb_DataMemory.sv`, `Buffers/tb_Buffers.sv`, `Hazard/tb_Forwarding.sv` — MEM, buffers, forwarding/stall.
+- `Integrador/tb_IF_to_WB.sv`, `Integrador/tb_branch.sv` — full pipeline + branch/jump integration.
+- `Debug/tb_DebugUnit.sv`, `Debug/tb_RiscvDebug.sv` — DebugUnit FSM and `RiscvTop` SoC end-to-end.
 
 ## Git Conventions
 
