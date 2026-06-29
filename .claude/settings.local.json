@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Skill(systemverilog)",
+      "Skill(riscv-expert)",
+      "Bash(mkdir -p /tmp/sim_cu)",
+      "Read(//tmp/**)",
+      "Bash(mkdir -p /home/agustin-her/arqui-compartido/tp-final-risc-v-pipeline-processor/*)",
+      "Bash(mkdir -p sim_out)",
+      "Bash(xvlog --sv ../src/sources_1/Buffers/ID_EX_Buffer.sv ../src/sources_1/Buffers/EX_MEM_Buffer.sv ../src/sources_1/Buffers/MEM_WB_Buffer.sv ../src/sim_1/Buffers/tb_Buffers.sv)",
+      "Bash(xelab -debug typical tb_Buffers -s sim_buf)",
+      "Bash(xsim sim_buf --runall)",
+      "Skill(run-tests)",
+      "Bash(bash *)"
+    ]
+  }
+}

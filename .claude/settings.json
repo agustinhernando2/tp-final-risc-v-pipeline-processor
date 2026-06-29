@@ -1,0 +1,9 @@
+{
+  "skills": [
+    {
+      "name": "vivado-linux-debug",
+      "path": ".claude/skills/vivado-linux-debug",
+      "enabled": true
+    }
+  ]
+}
