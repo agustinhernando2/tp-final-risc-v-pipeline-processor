@@ -10,14 +10,15 @@ Implementa el protocolo de la DebugUnit (src/sources_1/Debug/DebugUnit.sv):
       5 = STEP           ejecutar un ciclo
 
   Carga: tras 0x01 se envían IM_WORDS instrucciones × 4 bytes, MSB-first.
-  Dump : PC (8 bytes) -> 32 registros × 4 bytes -> DM_DEPTH words × 4 bytes,
+  Dump : PC (4 bytes) -> 32 registros × 4 bytes -> DM_DEPTH words × 4 bytes,
          todo MSB-first / big-endian.
 
 Config serie: 19200 8N1 (igual que el MIPS de base, para reusar herramientas).
 
-El datapath RISC-V es de 32 bits (DATA_WIDTH=32), así que cada registro/word de
-memoria del dump son 4 bytes. El PC sigue siendo de 64 bits (NB_PC=64) -> 8 bytes.
-WORD_BYTES = DATA_WIDTH/8; si se cambia DATA_WIDTH en RiscvTop, actualizar acá.
+El datapath RISC-V es de 32 bits (DATA_WIDTH=32). La DebugUnit dumpea cada valor
+(incluido el PC) a ancho NB_BYTES = DATA_WIDTH/8 = 4 bytes; del PC de 64 bits se
+mandan solo los 32 bits bajos (suficiente: el PC nunca supera el rango de la IMEM).
+WORD_BYTES = PC_BYTES = DATA_WIDTH/8; si se cambia DATA_WIDTH, actualizar acá.
 """
 
 import serial
@@ -34,7 +35,8 @@ IM_WORDS   = 64    # instrucciones del programa (con padding)
 N_REG      = 32    # registros volcados
 N_MEM      = 64    # words de memoria de datos volcados
 WORD_BYTES = 4     # 32 bits por valor del dump (DATA_WIDTH=32)
-PC_BYTES   = 8     # PC de 64 bits (NB_PC=64)
+PC_BYTES   = 4     # el dump del PC usa NB_BYTES=DATA_WIDTH/8 -> 4 bytes (los 32 bits
+                   # bajos del PC; NB_PC=64 pero la FSM dumpea a ancho de valor)
 
 
 class Uart:
@@ -67,10 +69,10 @@ class Uart:
                                    (w >> 8) & 0xFF, w & 0xFF]))
 
     # --- Recepción ---------------------------------------------------------
-    def _read_word(self):
-        """Lee WORD_BYTES bytes MSB-first y los arma en un entero."""
-        raw = self.ser.read(WORD_BYTES)
-        if len(raw) != WORD_BYTES:
+    def _read_word(self, nbytes=WORD_BYTES):
+        """Lee nbytes bytes MSB-first y los arma en un entero."""
+        raw = self.ser.read(nbytes)
+        if len(raw) != nbytes:
             raise TimeoutError("timeout leyendo un word del dump")
         value = 0
         for b in raw:
@@ -78,8 +80,12 @@ class Uart:
         return value
 
     def receive_dump(self):
-        """Lee el dump completo. Devuelve (pc, regs[N_REG], mem[N_MEM])."""
-        pc = self._read_word()
+        """Lee el dump completo. Devuelve (pc, regs[N_REG], mem[N_MEM]).
+
+        El PC son PC_BYTES (8, NB_PC=64); cada registro/word de memoria son
+        WORD_BYTES (4, DATA_WIDTH=32).
+        """
+        pc = self._read_word(PC_BYTES)
         regs = [self._read_word() for _ in range(N_REG)]
         mem = [self._read_word() for _ in range(N_MEM)]
         return pc, regs, mem
