@@ -1,8 +1,8 @@
 
 # Claude Code
-.claude/
-plans/
-CLAUDE.md
+# .claude/
+# plans/
+# CLAUDE.md
 
 # Vivado generated files
 *.jou
@@ -35,4 +35,4 @@ clockInfo.txt
 __pycache__/
 *.pyc
 
-TODO.md
+# TODO.md
