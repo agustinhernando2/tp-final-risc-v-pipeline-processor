@@ -569,13 +569,15 @@ cualquier momento `0x04` vuelca sin avanzar, y `0x02` pasa a ejecución continua
 vivado -mode batch -source .claude/skills/program-board/scripts/build_bitstream.tcl
 # 2. programar la Basys-3
 vivado -mode batch -source .claude/skills/program-board/scripts/program_board.tcl
-# 3. interactuar desde la GUI (carga / run / step / dump)
-python3 tools/gui/riscv_debug.py
+# 3. interactuar desde la GUI (carga / run / step / dump). Requiere --port y un subcomando:
+cd tools/gui && uv sync
+uv run riscv_debug.py --port /dev/ttyUSB1 loadrun programs/demo_add.hex
 ```
 
 > La GUI (`tools/gui/riscv_debug.py`) implementa el lado PC del protocolo: arma el
 > binario con zero-padding a `IM_WORDS`, manda los comandos y reconstruye el dump
-> (PC + 32 registros + memoria de datos).
+> (PC + 32 registros + memoria de datos). Ver [`tools/gui/README.md`](../tools/gui/README.md)
+> para prerrequisitos, instalación de dependencias y todos los subcomandos.
 
 ---
 
