@@ -155,3 +155,124 @@ Se verifica que `alu_result == inmediato` en los 8 valores posibles de
 `imm[14:12]`, incluyendo los 7 que antes seleccionaban una operación ALU
 incorrecta (SLLI, SLTI, …) y el caso `000` donde el operando A no nulo antes
 contaminaba la suma.
+
+---
+
+## BUG-002 — Branch tomado no flushea la instrucción inmediatamente posterior (B+4)
+
+**Estado:** ✅ resuelto  
+**Etapa afectada:** MEM (resolución del branch) + buffer EX/MEM  
+**Archivos involucrados:**
+- [`src/sources_1/Top/riscv.sv`](../../src/sources_1/Top/riscv.sv) — origen: `EX_MEM_Buffer.i_flush` estaba cableado a `1'b0`
+- [`src/sources_1/MEM/MemoryAccessStage.sv`](../../src/sources_1/MEM/MemoryAccessStage.sv) — genera `o_PCSrc` en la etapa MEM
+- [`src/sim_1/Integrador/tb_branch.sv`](../../src/sim_1/Integrador/tb_branch.sv) — testbench de regresión
+
+> **Resumen de la corrección:** el branch se resuelve en **MEM** (`o_PCSrc`), así
+> que cuando se toma hay **tres** instrucciones jóvenes en vuelo (etapas IF, ID y
+> EX). El RTL flusheaba solo IF/ID e ID/EX y dejaba viva la de EX (B+4), que pasaba
+> a MEM/WB y commiteaba su write-back. La corrección cablea `EX_MEM_Buffer.i_flush
+> = w_PCSrc`, flusheando las tres (penalidad de 3 ciclos). Detalle abajo en "Solución".
+
+---
+
+### Flujo correcto esperado de un branch tomado
+
+Con `assume-not-taken`, el IF sigue trayendo instrucciones secuenciales mientras el
+branch baja por el pipeline. La decisión no ocurre hasta **MEM**, así que cuando el
+branch llega a MEM ya entraron por detrás tres instrucciones:
+
+| Etapa en el ciclo en que el branch está en MEM | Instrucción | Acción correcta si el branch se toma |
+|---|---|---|
+| EX | B+4 | **flush** (la salta el branch) |
+| ID | B+8 | flush |
+| IF | B+12 | flush + redirigir PC al target |
+
+Esto coincide con Patterson & Hennessy, cap. 4.8, Fig. 4.59:
+
+> "Since the branch instruction decides whether to branch in the MEM stage […] the
+> three sequential instructions that follow the branch will be fetched and begin
+> execution. […] we must be able to **flush instructions in the IF, ID, and EX
+> stages** of the pipeline."
+
+### Raíz del bug y condición de fallo
+
+`riscv.sv` flusheaba solo dos de los tres buffers en un salto tomado:
+
+```
+IF_ID_Buffer.i_flush  = w_PCSrc                 // mata B+12 (IF)   ✓
+ID_EX_Buffer.i_flush  = w_ID_EX_flush | w_PCSrc // mata B+8  (ID)   ✓
+EX_MEM_Buffer.i_flush = 1'b0                     // B+4 (EX) NO se mata ✗
+```
+
+La instrucción en EX (B+4) se latcheaba normalmente en EX/MEM, llegaba a MEM y WB, y
+escribía su resultado en el register file aunque el salto la hubiera salteado.
+
+**Condición de fallo:** cualquier `beq`/`bne`/`jal`/`jalr` **tomado** cuya instrucción
+inmediatamente posterior tenga un efecto observable que el destino no sobrescriba.
+
+Ejemplo concreto — `tools/gui/programs/01_branches.s`:
+
+```asm
+        bne  x1, x3, fin   # 7 != 9 -> TOMADO, salta a 'fin'
+        addi x6, x6, 222   # B+4: la cabecera dice "x6 = 0 (se saltea / flush)"
+fin:    halt
+```
+
+- **Antes del fix:** `x6 = 222` (B+4 se filtró y ejecutó).
+- **Después del fix:** `x6 = 0` (B+4 flusheada), como documenta la cabecera del programa.
+
+Los 129 tests previos no lo detectaban porque en `tb_branch.sv` el efecto de la
+instrucción filtrada quedaba sobrescrito (JAL: `x5` se pisa a 2) o era inocuo
+(BNE loop: `x3=99` igual quedaba 99).
+
+### Solución (aplicada)
+
+`src/sources_1/Top/riscv.sv`, instancia `EX_MEM`:
+
+```diff
+-        .i_flush        (1'b0),
++        .i_flush        (w_PCSrc),
+```
+
+`EX_MEM_Buffer.sv` ya daba prioridad a `i_flush` sobre `i_enable`, y las otras dos
+flushes ya usaban `w_PCSrc`, así que el cambio sigue el patrón existente. El propio
+branch/JAL no se ve afectado: está en MEM y pasa a MEM/WB (otro buffer, no flusheado),
+por lo que JAL conserva su write-back del return address.
+
+Resultado: en un salto tomado se flushean las tres instrucciones jóvenes (IF, ID, EX);
+penalidad de **3 ciclos** cuando el branch se toma, 0 cuando no.
+
+**Testbench (regresión):** [`src/sim_1/Integrador/tb_branch.sv`](../../src/sim_1/Integrador/tb_branch.sv),
+Test 3 ("Taken-branch flush (B+4)"): un `beq` tomado saltea `addi x10,x0,123`; verifica
+`x10 == 0` (B+4 flusheada), `x11 == 0` (B+8) y `x12 == 77` (target ejecutado). Antes del
+fix, `x10` daba 123 y el test fallaba.
+
+### Cómo ejecutar el testbench
+
+```bash
+bash .claude/skills/run-tests/scripts/run_tests.sh
+```
+
+o solo el de branches:
+
+```bash
+mkdir -p sim_out && cd sim_out
+xvlog --sv $(find ../src/sources_1 -name '*.sv') ../src/sim_1/Integrador/tb_branch.sv
+xelab -debug typical tb_branch -s sim_branch
+xsim sim_branch --runall
+```
+
+### Salida esperada (tras la corrección)
+
+```
+--- Taken-branch flush (B+4) Test ---
+  PASS  FLUSH: x10 == 0 (B+4 flushed)
+  PASS  FLUSH: x11 == 0 (B+8 flushed)
+  PASS  FLUSH: x12 == 77 (target ran)
+```
+
+### Validación en hardware
+
+El bug también se reproduce y se corrige de punta a punta en la Basys-3 corriendo
+`tools/gui/programs/01_branches.s` (assembler → `loadrun` por UART): el dump debe
+mostrar `x5 == 111` y `x6 == 0` con el bitstream corregido (pre-fix daba `x6 == 222`).

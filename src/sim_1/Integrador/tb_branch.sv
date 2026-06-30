@@ -419,6 +419,46 @@ module tb_branch;
         check("JAL: x4 == 77", DUT.ID.RF.r_RF[4], 32'd77);
 
         // ==============================================================
+        // TEST 3: Taken branch flushes the instruction right behind it (B+4)
+        // Regression for BUG-002: branch resolves in MEM, so when taken the
+        // instruction in EX (B+4) must be flushed too. Earlier it leaked and
+        // committed its write-back.
+        // Program:
+        //   0: addi x1,  x0, 5
+        //   1: addi x2,  x0, 5
+        //   2: beq  x1, x2, +12   # taken (5==5); target = byte 8 + 12 = byte 20 = instr 5
+        //   3: addi x10, x0, 123  # B+4 -> must be flushed (target jumps over it)
+        //   4: addi x11, x0, 200  # B+8 -> flushed
+        //   5: addi x12, x0, 77   # branch target
+        //
+        // x10 must stay 0: the target does not overwrite it, so a non-zero x10
+        // proves the post-branch instruction leaked.
+        // ==============================================================
+        $display("\n--- Taken-branch flush (B+4) Test ---");
+
+        i_if_enable = 0;
+        i_reset     = 1;
+        @(posedge i_clk);
+        #1;
+        @(posedge i_clk);
+        #1;
+        i_reset = 0;
+
+        load_instr(8'h00, 32'h00500093);  // addi x1,  x0, 5
+        load_instr(8'h01, 32'h00500113);  // addi x2,  x0, 5
+        load_instr(8'h02, 32'h00208663);  // beq  x1, x2, +12
+        load_instr(8'h03, 32'h07B00513);  // addi x10, x0, 123 (B+4)
+        load_instr(8'h04, 32'h0C800593);  // addi x11, x0, 200 (B+8)
+        load_instr(8'h05, 32'h04D00613);  // addi x12, x0, 77  (target)
+
+        i_if_enable = 1;
+        repeat (40) tick;
+
+        check("FLUSH: x10 == 0 (B+4 flushed)", DUT.ID.RF.r_RF[10], 32'd0);
+        check("FLUSH: x11 == 0 (B+8 flushed)", DUT.ID.RF.r_RF[11], 32'd0);
+        check("FLUSH: x12 == 77 (target ran)", DUT.ID.RF.r_RF[12], 32'd77);
+
+        // ==============================================================
         // Summary
         // ==============================================================
         $display("\n--- Results: %0d passed, %0d failed ---", pass_count, fail_count);

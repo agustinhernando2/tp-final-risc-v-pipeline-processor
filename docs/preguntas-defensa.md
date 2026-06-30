@@ -31,7 +31,7 @@ Congelo el PC y el buffer IF/ID (no avanzan), e inyecto una burbuja poniendo en 
 ## 3. Hazards de control (branches y jumps)
 
 **P: ¿Cómo manejás los saltos?**
-Uso **assume-not-taken**: asumo que el branch no se toma y sigo trayendo instrucciones secuenciales. El branch se resuelve en la frontera EX/MEM. Si resultó tomado, las dos instrucciones que entraron por detrás (las que están en IF/ID e ID/EX) son inválidas, así que las **flusheo** poniéndolas en NOP. El costo es de 2 ciclos de penalidad solo cuando el salto se toma; si no se toma, no pago nada.
+Uso **assume-not-taken**: asumo que el branch no se toma y sigo trayendo instrucciones secuenciales. La decisión del branch se calcula en la etapa **MEM** (es donde está el `PCSrc`). Como el branch no decide hasta MEM, cuando se resuelve ya entraron por detrás **tres** instrucciones —las de las etapas IF, ID y EX—; si resultó tomado, esas tres son inválidas y las **flusheo** poniéndolas en NOP (flush de IF/ID, ID/EX y EX/MEM). El costo es de **3 ciclos** de penalidad solo cuando el salto se toma; si no se toma, no pago nada. Esto es la configuración base de Patterson & Hennessy (cap. 4.8, Fig. 4.59: "flush instructions in the IF, ID, and EX stages"). El libro muestra cómo bajar la penalidad a 1 ciclo moviendo la decisión a ID, pero eso requiere adelantar el cálculo del target y el test de igualdad, más forwarding/stall extra para el branch; no lo implementé.
 
 **P: ¿Qué branches soportás?**
 BEQ y BNE, que es lo que pedía el TP. Se distinguen con `funct3[0]`. Los jumps son JAL y JALR. Cosas como `J` y `JR` de MIPS no necesitan hardware dedicado: el ensamblador las emite como `JAL x0` y `JALR x0` (escriben en x0, que se descarta).

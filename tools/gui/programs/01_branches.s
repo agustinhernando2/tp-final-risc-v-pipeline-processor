@@ -7,11 +7,11 @@
 # Resultado esperado:  x5 = 111  (la del branch no tomado SÍ se ejecuta)
 #                      x6 = 0    (la del branch tomado se saltea / flush)
 
-        li   x1, 7
-        li   x2, 7
-        li   x3, 9
-        li   x5, 0
-        li   x6, 0
+        addi x1, x0, 7
+        addi x2, x0, 7
+        addi x3, x0, 9
+        addi x5, x0, 0
+        addi x6, x0, 0
 
         beq  x1, x3, skip_a   # 7 == 9 ? NO  -> branch NO tomado, sigue derecho
         addi x5, x5, 111      # se ejecuta      -> x5 = 111

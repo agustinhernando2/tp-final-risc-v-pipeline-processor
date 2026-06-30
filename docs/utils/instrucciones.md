@@ -246,3 +246,95 @@ dos cubrís los 32 bits.
 - Riesgos de datos y cómo se resuelven: [`forwarding-unit.md`](forwarding-unit.md)
   y [`hazard-detection-unit.md`](hazard-detection-unit.md).
 - Estructura general del procesador: [`structure.md`](structure.md).
+
+---
+
+## Tabla completa de instrucciones soportadas
+
+Fuente de verdad: [`ControlUnit.sv`](../../src/sources_1/ID/ControlUnit.sv), [`ALUControl.sv`](../../src/sources_1/EX/ALUControl.sv), [`DataMemory.sv`](../../src/sources_1/MEM/DataMemory.sv).
+
+La columna **Datapath (EX / MEM)** muestra los componentes activos en cada etapa, separados por ` / `. `·` encadena componentes dentro de la misma etapa. `ImmExt` = immediate extender + ALUSrc mux; `BrAdder` = sumador PC+imm de EX; `DM` = data memory; `PCSrc` = lógica de redirección del PC en MEM.
+
+### R-type — `opcode = 0110011` (`0x33`)
+
+| Instrucción | funct3 | funct7[5] | Descripción | Datapath (EX / MEM) |
+|-------------|--------|-----------|-------------|---------------------|
+| `add`       | `000`  | `0`       | Suma dos registros | `ALU` |
+| `sub`       | `000`  | `1`       | Resta dos registros | `ALU` |
+| `sll`       | `001`  | —         | Desplazamiento lógico a la izquierda | `ALU` |
+| `slt`       | `010`  | —         | 1 si rs1 < rs2 (con signo) | `ALU` |
+| `sltu`      | `011`  | —         | 1 si rs1 < rs2 (sin signo) | `ALU` |
+| `xor`       | `100`  | —         | XOR bit a bit | `ALU` |
+| `srl`       | `101`  | `0`       | Desplazamiento lógico a la derecha | `ALU` |
+| `sra`       | `101`  | `1`       | Desplazamiento aritmético a la derecha | `ALU` |
+| `or`        | `110`  | —         | OR bit a bit | `ALU` |
+| `and`       | `111`  | —         | AND bit a bit | `ALU` |
+
+### I-type aritmético — `opcode = 0010011` (`0x13`)
+
+El inmediato **no va directo al RF** — entra al ALU por el ALUSrc mux (operand B). La ALU siempre opera.
+
+| Instrucción | funct3 | funct7[5] | Descripción | Datapath (EX / MEM) |
+|-------------|--------|-----------|-------------|---------------------|
+| `addi`      | `000`  | —         | Suma registro + inmediato | `ImmExt · ALU` |
+| `slli`      | `001`  | —         | Desplazamiento lógico izq. con inmediato | `ImmExt · ALU` |
+| `slti`      | `010`  | —         | 1 si rs1 < imm (con signo) | `ImmExt · ALU` |
+| `sltiu`     | `011`  | —         | 1 si rs1 < imm (sin signo) | `ImmExt · ALU` |
+| `xori`      | `100`  | —         | XOR con inmediato | `ImmExt · ALU` |
+| `srli`      | `101`  | `0`       | Desplazamiento lógico der. con inmediato | `ImmExt · ALU` |
+| `srai`      | `101`  | `1`       | Desplazamiento aritmético der. con inmediato | `ImmExt · ALU` |
+| `ori`       | `110`  | —         | OR con inmediato | `ImmExt · ALU` |
+| `andi`      | `111`  | —         | AND con inmediato | `ImmExt · ALU` |
+
+### Load — `opcode = 0000011` (`0x03`)
+
+| Instrucción | funct3 | Descripción | Datapath (EX / MEM) |
+|-------------|--------|-------------|---------------------|
+| `lb`        | `000`  | Lee 1 byte, extendido con signo | `ImmExt · ALU` / `DM[R]` |
+| `lh`        | `001`  | Lee 2 bytes, extendido con signo | `ImmExt · ALU` / `DM[R]` |
+| `lw`        | `010`  | Lee 4 bytes (palabra completa) | `ImmExt · ALU` / `DM[R]` |
+| `lbu`       | `100`  | Lee 1 byte, extendido con cero | `ImmExt · ALU` / `DM[R]` |
+| `lhu`       | `101`  | Lee 2 bytes, extendido con cero | `ImmExt · ALU` / `DM[R]` |
+| `lwu`       | `110`  | Lee 4 bytes, extendido con cero (≡ `lw` en 32 bits) | `ImmExt · ALU` / `DM[R]` |
+
+### Store — `opcode = 0100011` (`0x23`)
+
+| Instrucción | funct3 | Descripción | Datapath (EX / MEM) |
+|-------------|--------|-------------|---------------------|
+| `sb`        | `000`  | Escribe 1 byte en memoria | `ImmExt · ALU` / `DM[W]` |
+| `sh`        | `001`  | Escribe 2 bytes en memoria | `ImmExt · ALU` / `DM[W]` |
+| `sw`        | `010`  | Escribe 4 bytes en memoria | `ImmExt · ALU` / `DM[W]` |
+
+### Branch — `opcode = 1100011` (`0x63`)
+
+Solo BEQ y BNE están implementadas. La lógica en `MemoryAccessStage` evalúa `zero ^ funct3[0]` (flag de igualdad del ALU); BLT/BGE/BLTU/BGEU no son soportadas.
+
+En EX: la ALU hace SUB (ALUOp=01 forzado) para obtener el flag `zero`, y el `BrAdder` calcula PC+imm en paralelo. En MEM: `PCSrc` decide si redirigir el PC.
+
+| Instrucción | funct3 | Descripción | Datapath (EX / MEM) |
+|-------------|--------|-------------|---------------------|
+| `beq`       | `000`  | Salta si rs1 == rs2 | `ALU(SUB) · BrAdder` / `PCSrc` |
+| `bne`       | `001`  | Salta si rs1 != rs2 | `ALU(SUB) · BrAdder` / `PCSrc` |
+
+### U-type
+
+En EX: el mux `u_mux_alu_a` fuerza el operand A de la ALU a `0`, entonces la ALU computa `0 + imm = imm`. El inmediato **no bypasea la ALU**.
+
+| Instrucción | Opcode             | funct3 | funct7[5] | Descripción | Datapath (EX / MEM) |
+|-------------|--------------------|--------|-----------|-------------|---------------------|
+| `lui`       | `0110111` (`0x37`) | —      | —         | Carga inmediato en bits [31:12] del registro | `ImmExt · ALU(0+imm)` |
+
+### J-type / saltos
+
+Para `jal`: en EX el `BrAdder` calcula PC+imm (destino); `PC+4` fluye como valor de retorno hacia WB. Para `jalr`: la ALU calcula rs1+imm (destino) y ese resultado se usa como PC en MEM.
+
+| Instrucción | Opcode             | funct3 | funct7[5] | Descripción | Datapath (EX / MEM) |
+|-------------|--------------------|--------|-----------|-------------|---------------------|
+| `jal`       | `1101111` (`0x6F`) | —      | —         | Salta a PC+offset; guarda retorno en rd | `ImmExt · BrAdder` / `PCSrc · PC+4→rd` |
+| `jalr`      | `1100111` (`0x67`) | `000`  | —         | Salta a rs1+offset; guarda retorno en rd | `ImmExt · ALU` / `PCSrc · ALU→PC` |
+
+### Custom
+
+| Instrucción | Opcode             | funct3 | funct7[5] | Descripción | Datapath (EX / MEM) |
+|-------------|--------------------|--------|-----------|-------------|---------------------|
+| `halt`      | `0001011` (`0x0B`) | —      | —         | Detiene el pipeline (custom-0); los programas deben terminar con esta instrucción | `—` |

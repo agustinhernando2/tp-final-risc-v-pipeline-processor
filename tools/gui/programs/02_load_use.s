@@ -9,7 +9,7 @@
 #
 # Resultado esperado:  x1 = 10, mem[0] = 10, x3 = 10 (leído), x4 = 15 (10 + 5)
 
-        li   x1, 10
+        addi x1, x0, 10
         sw   x1, 0(x0)        # mem[0] = 10
         lw   x3, 0(x0)        # x3 = mem[0]   (= 10)
         addi x4, x3, 5        # USA x3 apenas cargado -> RAW load-use, x4 = 15

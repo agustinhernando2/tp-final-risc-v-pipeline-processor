@@ -339,7 +339,10 @@ module RISCV #(
         .i_clk          (i_clk),
         .i_reset        (i_reset),
         .i_enable       (i_if_enable),
-        .i_flush        (1'b0),
+        // Branch resolves in MEM: when taken (w_PCSrc), the instruction still in
+        // EX (B+4) is wrong-path and must be flushed too — same as IF/ID and ID/EX.
+        // Without this, B+4 leaks through to MEM/WB and commits. See known-bugs BUG-002.
+        .i_flush        (w_PCSrc),
         .i_alu_result   (w_ex_alu_result),
         .i_zero         (w_ex_zero),
         .i_read_data_2  (w_ex_read_data_2),

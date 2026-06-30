@@ -14,7 +14,7 @@
 #   x12 (lh  mem[1]) negativo (bit 15 en 1, sign-extend)
 #   x13 (lhu mem[1]) = 0x00008000 (zero-extend)
 
-        li   x1, 255          # 0x000000FF
+        addi x1, x0, 255      # 0x000000FF
         sw   x1, 0(x0)        # mem[0] = 0x000000FF
 
         lb   x10, 0(x0)       # byte CON signo  -> 0xFF se interpreta como -1
