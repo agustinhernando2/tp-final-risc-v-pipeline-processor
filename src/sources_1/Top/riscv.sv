@@ -340,9 +340,13 @@ module RISCV #(
         .i_reset        (i_reset),
         .i_enable       (i_if_enable),
         // Branch resolves in MEM: when taken (w_PCSrc), the instruction still in
-        // EX (B+4) is wrong-path and must be flushed too — same as IF/ID and ID/EX.
-        // Without this, B+4 leaks through to MEM/WB and commits. See known-bugs BUG-002.
-        .i_flush        (w_PCSrc),
+        // EX (B+4) is wrong-path and must be flushed too (BUG-002). The flush is
+        // gated by i_if_enable: the taken branch waits in EX/MEM driving PCSrc until
+        // the next *enabled* cycle redirects the PC. An ungated flush would evict the
+        // branch during the DebugUnit's frozen dump (step-by-step), dropping PCSrc
+        // before the gated PC redirect fires, so the target would be flushed but never
+        // re-fetched (BUG-003). Gating keeps flush and PC redirect on the same edge.
+        .i_flush        (w_PCSrc & i_if_enable),
         .i_alu_result   (w_ex_alu_result),
         .i_zero         (w_ex_zero),
         .i_read_data_2  (w_ex_read_data_2),

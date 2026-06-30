@@ -231,11 +231,16 @@ instrucción filtrada quedaba sobrescrito (JAL: `x5` se pisa a 2) o era inocuo
 
 ```diff
 -        .i_flush        (1'b0),
-+        .i_flush        (w_PCSrc),
++        .i_flush        (w_PCSrc & i_if_enable),
 ```
 
-`EX_MEM_Buffer.sv` ya daba prioridad a `i_flush` sobre `i_enable`, y las otras dos
-flushes ya usaban `w_PCSrc`, así que el cambio sigue el patrón existente. El propio
+> **Nota:** la primera versión de este fix usó `.i_flush (w_PCSrc)` (sin gatear).
+> Eso corrige el leak en ejecución continua pero **rompe el modo paso a paso**
+> (ver **BUG-003**): el flush sin gatear expulsa el branch del EX/MEM durante el
+> freeze del dump y se pierde la redirección del PC. La forma correcta gatea el
+> flush con `i_if_enable`, igual que el update del PC.
+
+`EX_MEM_Buffer.sv` ya daba prioridad a `i_flush` sobre `i_enable`. El propio
 branch/JAL no se ve afectado: está en MEM y pasa a MEM/WB (otro buffer, no flusheado),
 por lo que JAL conserva su write-back del return address.
 
@@ -276,3 +281,103 @@ xsim sim_branch --runall
 El bug también se reproduce y se corrige de punta a punta en la Basys-3 corriendo
 `tools/gui/programs/01_branches.s` (assembler → `loadrun` por UART): el dump debe
 mostrar `x5 == 111` y `x6 == 0` con el bitstream corregido (pre-fix daba `x6 == 222`).
+
+---
+
+## BUG-003 — Branch tomado pierde la redirección del PC en modo paso a paso
+
+**Estado:** ✅ resuelto  
+**Etapa afectada:** MEM (resolución del branch) + buffer EX/MEM + DebugUnit (step)  
+**Relación:** regresión introducida por la **primera** versión del fix de [BUG-002](#bug-002--branch-tomado-no-flushea-la-instrucción-inmediatamente-posterior-b4).  
+**Archivos involucrados:**
+- [`src/sources_1/Top/riscv.sv`](../../src/sources_1/Top/riscv.sv) — `EX_MEM_Buffer.i_flush`
+- [`src/sources_1/Debug/DebugUnit.sv`](../../src/sources_1/Debug/DebugUnit.sv) — congela el pipeline (`o_pipeline_enable=0`) durante el dump
+- [`src/sources_1/Buffers/EX_MEM_Buffer.sv`](../../src/sources_1/Buffers/EX_MEM_Buffer.sv) — `i_flush` tiene prioridad sobre `i_enable`
+- [`src/sim_1/Integrador/tb_step_branch.sv`](../../src/sim_1/Integrador/tb_step_branch.sv) — testbench de regresión
+
+> **Resumen de la corrección:** el flush de EX/MEM en un branch tomado debe gatearse
+> con `i_if_enable` (`w_PCSrc & i_if_enable`), igual que el update del PC. Sin gatear,
+> en paso a paso el branch se expulsa del EX/MEM durante el freeze del dump y la
+> redirección del PC se pierde, dejando el target flusheado pero nunca re-fetcheado.
+
+### Síntoma
+
+Mismo `01_branches.s` con un cuerpo en el destino del salto, p. ej.:
+
+```asm
+        bne  x1, x3, fin   # tomado
+        addi x6, x6, 222   # B+4
+fin:    addi x8, x0, 3     # destino: debería ejecutarse -> x8 = 3
+        halt
+```
+
+- **Ejecución continua** (`run`/`loadrun`): `x8 == 3` ✓
+- **Paso a paso** (`step`): `x8 == 0` ✗ — el destino se flushea y nunca se re-ejecuta.
+
+Misma arquitectura, resultado distinto según el modo.
+
+### Causa raíz
+
+El branch se resuelve en MEM, así que un branch tomado queda en el buffer EX/MEM
+manteniendo `PCSrc=1` hasta que el siguiente ciclo redirige el PC. Dos señales tienen
+gating distinto:
+
+| Señal | Gating | Efecto |
+|---|---|---|
+| Update del PC (`PC ← target`) | `i_if_enable & w_PCWrite` | **gated** por enable |
+| Flush de IF/ID, ID/EX, EX/MEM | `w_PCSrc` (sin gatear) | dispara aunque enable=0 |
+
+En **continuo** el ciclo siguiente a la resolución está habilitado: flush y redirect
+ocurren en el mismo flanco. En **paso a paso**, la DebugUnit congela el pipeline
+(`pipeline_enable=0`) muchos ciclos para hacer el dump. Como el flush de EX/MEM no
+estaba gateado (y tiene prioridad sobre `i_enable` en el buffer), **expulsa el branch
+del EX/MEM durante el freeze**, bajando `PCSrc` a 0 antes de que el redirect (gated por
+enable) pueda ejecutarse. El destino se flushea como instrucción joven pero el PC nunca
+salta a él → nunca se re-fetchea.
+
+> Las flushes de IF/ID e ID/EX también son ungated, pero ahí es inocuo: solo contienen
+> instrucciones del camino equivocado. El que **debe** sobrevivir al freeze es el branch
+> en EX/MEM, porque es el que maneja la redirección.
+
+### Solución (aplicada)
+
+`src/sources_1/Top/riscv.sv`, instancia `EX_MEM`:
+
+```diff
+-        .i_flush        (w_PCSrc),
++        .i_flush        (w_PCSrc & i_if_enable),
+```
+
+Con el flush gateado, durante el freeze el branch **sobrevive** en EX/MEM (enable=0 →
+flush=0 → el buffer retiene) y `PCSrc` se mantiene; en el próximo ciclo habilitado el
+flush y el `PC ← target` ocurren juntos, idéntico a continuo. La instrucción B+4 se
+sigue flusheando correctamente (en continuo `w_PCSrc & 1 = w_PCSrc`).
+
+### Por qué no lo agarraban los tests
+
+`tb_branch.sv` corre siempre en continuo (`i_if_enable=1` fijo), así que no puede
+ejercitar el modo paso a paso. El nuevo `tb_step_branch.sv` **emula** el step (pulsa
+`i_if_enable` un ciclo y congela `FREEZE` ciclos) y reproduce el bug de forma
+determinística.
+
+### Cómo ejecutar el testbench
+
+```bash
+bash .claude/skills/run-tests/scripts/run_tests.sh
+```
+
+### Salida esperada (tras la corrección)
+
+```
+--- Taken branch in STEP-BY-STEP (freeze=4) ---
+  PASS  STEP: x8 == 3 (branch target re-fetched)
+  PASS  STEP: x10 == 0 (B+4 flushed)
+  PASS  STEP: x11 == 0 (B+8 flushed)
+```
+
+### Validación en hardware
+
+Se reproduce y corrige en la Basys-3 cargando el programa de arriba y avanzando con
+`riscv_debug.py ... step` (reprogramar la placa antes para garantizar reset, porque la
+DebugUnit solo acepta `WRITE_IM` desde el estado `INITIAL`): el dump del último paso
+debe mostrar `x8 == 3` con el bitstream corregido (la versión ungated daba `x8 == 0`).
