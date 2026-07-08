@@ -49,54 +49,17 @@ module RiscvTop #(
 );
 
     // -------------------------------------------------------------------------
-    // Generación de reloj: MMCM 100 MHz (W5) -> 65 MHz (w_clk)
+    // Generación de reloj
     // -------------------------------------------------------------------------
-    // Instanciamos el primitivo MMCME2_BASE directamente (no el IP Clock Wizard)
-    // para que el flujo batch sin proyecto siga siendo autocontenido. El Clock
-    // Wizard de la GUI genera exactamente este mismo hardware; ver plans/stage11.md.
-    //   VCO = 100 MHz * CLKFBOUT_MULT_F / DIVCLK_DIVIDE = 100*6.5/1 = 650 MHz (en rango)
-    //   w_clk = VCO / CLKOUT0_DIVIDE_F = 650/10 = 65 MHz
-    logic w_clk;  // reloj de 65 MHz que alimenta todo el SoC
-    logic w_clk_unbuf;  // salida CLKOUT0 del MMCM antes del BUFG
-    logic w_fb;  // realimentación CLKFBOUT
-    logic w_fb_buf;  // realimentación tras BUFG (CLKFBIN)
-    logic w_locked;  // 1 cuando el MMCM enganchó
 
-    MMCME2_BASE #(
-        .CLKIN1_PERIOD     (10.000),  // 100 MHz de entrada
-        .DIVCLK_DIVIDE     (1),
-        .CLKFBOUT_MULT_F   (6.500),   // VCO = 650 MHz
-        .CLKOUT0_DIVIDE_F  (10.000),  // 65 MHz
-        .CLKOUT0_DUTY_CYCLE(0.5),
-        .STARTUP_WAIT      ("FALSE")
-    ) u_mmcm (
-        .CLKIN1   (i_clk),
-        .CLKFBIN  (w_fb_buf),
-        .CLKFBOUT (w_fb),
-        .CLKOUT0  (w_clk_unbuf),
-        .CLKOUT0B (),
-        .CLKOUT1  (),
-        .CLKOUT1B (),
-        .CLKOUT2  (),
-        .CLKOUT2B (),
-        .CLKOUT3  (),
-        .CLKOUT3B (),
-        .CLKOUT4  (),
-        .CLKOUT5  (),
-        .CLKOUT6  (),
-        .CLKFBOUTB(),
-        .LOCKED   (w_locked),
-        .PWRDWN   (1'b0),
-        .RST      (i_reset)
-    );
+    logic w_clk;
+    logic w_locked;
 
-    BUFG u_bufg_fb (
-        .I(w_fb),
-        .O(w_fb_buf)
-    );
-    BUFG u_bufg_clk (
-        .I(w_clk_unbuf),
-        .O(w_clk)
+    clk_wiz_0 u_clk_wiz (
+        .clk_in1(i_clk),
+        .clk_out1(w_clk),
+        .locked(w_locked),
+        .reset(i_reset)
     );
 
     // -------------------------------------------------------------------------

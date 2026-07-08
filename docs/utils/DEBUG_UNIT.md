@@ -16,6 +16,7 @@ mundo serie (UART / PC) con el pipeline RISC-V:
 11. [Secuencia completa de uso (PC ↔ DebugUnit ↔ core)](#11-secuencia-completa-de-uso)
 12. [Parámetros, pines y cómo probar](#12-parámetros-pines-y-cómo-probar)
 13. [Limitaciones conocidas](#13-limitaciones-conocidas)
+14. [Valores de Control — Layout de bits y decodificación](#14-valores-de-control--layout-de-bits-y-decodificación)
 
 > El módulo vive en `src/sources_1/Debug/DebugUnit.sv`. Es el corazón de la
 > Stage 9b: el puente entre la [`UART`](UART.md) (9a) y el core `RISCV`. Es la
@@ -635,6 +636,115 @@ uv run riscv_debug.py --port /dev/ttyUSB1 loadrun programs/demo_add.hex
   hay que usar el modo paso a paso.
 - **Sin breakpoints reales:** el "debug" es carga + run/step + dump. No hay condiciones
   de parada por dirección ni watchpoints; el único punto de parada es `HALT`.
+
+---
+
+---
+
+## 14. Valores de Control — Layout de bits y decodificación
+
+Los campos `ctrl` de cada buffer latches sus señales de control comprimidas en un solo
+valor. Este apartado documenta el **layout de bits** y cómo interpretarlos al leer el dump.
+
+### `ID/EX.ctrl` (índice 12)
+
+**Ancho:** 12 bits (packing en `riscv.sv` línea 504-518). **Orden:** bit 0 = LSB.
+
+| Bit(s) | Señal | Ancho | Rango | Significado |
+|--------|-------|-------|-------|-------------|
+| 0 | `RegWrite` | 1 | 0–1 | Escribir resultado en registro destino (rd) |
+| 1 | `ALUSrc` | 1 | 0–1 | 0 = operando 2 es rs2; 1 = es immediate |
+| 3:2 | `ALUOp` | 2 | 0–3 | Control del ALU: 00=ADD, 01=SUB, 10=funct, 11=immediate |
+| 4 | `MemRead` | 1 | 0–1 | Leer desde memoria de datos |
+| 5 | `MemWrite` | 1 | 0–1 | Escribir a memoria de datos |
+| 6 | `MemToReg` | 1 | 0–1 | 0 = WB usa ALU result; 1 = usa lectura de memoria |
+| 7 | `Branch` | 1 | 0–1 | Instrucción de branch (BEQ, BNE, etc.) |
+| 8 | `Jump` | 1 | 0–1 | Instrucción de salto incondicional (JAL, JALR) |
+| 9 | `JumpReg` | 1 | 0–1 | 1 si es JALR (salto a registro); 0 si es JAL |
+| 10 | `LUI` | 1 | 0–1 | Instrucción LUI (Load Upper Immediate) |
+| 11 | `Halt` | 1 | 0–1 | Instrucción HALT (fin de programa) |
+
+**Ejemplo decodificación:**
+
+- `ID/EX.ctrl = 0x001` → `RegWrite=1, ALUSrc=0, ALUOp=00, MemRead=0, MemWrite=0, MemToReg=0, Branch=0, Jump=0, JumpReg=0, LUI=0, Halt=0`  
+  **→ R-type:** LEE rs1/rs2, ALU suma, ESCRIBE rd.
+
+- `ID/EX.ctrl = 0x307` → `RegWrite=1, ALUSrc=1, ALUOp=11, MemRead=0, MemWrite=0, MemToReg=0, Branch=0, Jump=0, JumpReg=0, LUI=0, Halt=0`  
+  **→ I-arith (ADDI):** LEE rs1, immediate, ALU suma, ESCRIBE rd.
+
+- `ID/EX.ctrl = 0x0F0` → `RegWrite=0, ALUSrc=1, ALUOp=00, MemRead=0, MemWrite=0, MemToReg=0, Branch=1, Jump=0, JumpReg=0, LUI=0, Halt=0`  
+  **→ Branch:** LEE rs1/rs2, ALU resta (compara), sin escribir registro.
+
+### `EX/MEM.ctrl` (índice 19)
+
+**Ancho:** 9 bits (packing en `riscv.sv` línea 526-538). **Orden:** bit 0 = LSB.
+
+| Bit(s) | Señal | Ancho | Rango | Significado |
+|--------|-------|-------|-------|-------------|
+| 0 | `RegWrite` | 1 | 0–1 | Escribir resultado en registro destino (rd) |
+| 1 | `MemRead` | 1 | 0–1 | Leer desde memoria de datos |
+| 2 | `MemWrite` | 1 | 0–1 | Escribir a memoria de datos |
+| 3 | `MemToReg` | 1 | 0–1 | 0 = WB usa ALU result; 1 = usa lectura de memoria |
+| 4 | `Branch` | 1 | 0–1 | Instrucción de branch (evaluada en MEM) |
+| 5 | `Jump` | 1 | 0–1 | Instrucción de salto (en ruta a resolver) |
+| 6 | `JumpReg` | 1 | 0–1 | 1 si es JALR; 0 si es JAL |
+| 7 | `Halt` | 1 | 0–1 | Instrucción HALT (en camino a WB) |
+| 8 | `zero` | 1 | 0–1 | **Flag de ALU:** 1 si el resultado fue 0 (rama tomada) |
+
+**Ejemplo decodificación:**
+
+- `EX/MEM.ctrl = 0x110` → `RegWrite=0, MemRead=0, MemWrite=0, MemToReg=0, Branch=1, Jump=0, JumpReg=0, Halt=0, zero=1`  
+  **→ Branch TOMADO:** condición verdadera; MEM resuelve el salto y redirige el PC.
+
+- `EX/MEM.ctrl = 0x009` → `RegWrite=1, MemRead=0, MemWrite=0, MemToReg=0, Branch=0, Jump=0, JumpReg=0, Halt=0, zero=0`  
+  **→ Instrucción aritmética:** escribe rd; no branch/jump.
+
+- `EX/MEM.ctrl = 0x00B` → `RegWrite=1, MemRead=1, MemWrite=0, MemToReg=1, Branch=0, Jump=0, JumpReg=0, Halt=0, zero=0`  
+  **→ Load (LW, LB, etc.):** lee memoria, usa el dato para WB.
+
+- `EX/MEM.ctrl = 0x004` → `RegWrite=0, MemRead=0, MemWrite=0, MemToReg=0, Branch=0, Jump=0, JumpReg=0, Halt=0, zero=0`  
+  **→ Store:** escribe memoria (sin write-back a registros).
+
+### `MEM/WB.ctrl` (índice 24)
+
+**Ancho:** 4 bits (packing en `riscv.sv` línea 544-548). **Orden:** bit 0 = LSB.
+
+| Bit(s) | Señal | Ancho | Rango | Significado |
+|--------|-------|-------|-------|-------------|
+| 0 | `RegWrite` | 1 | 0–1 | Escribir resultado en registro destino (rd) |
+| 1 | `MemToReg` | 1 | 0–1 | 0 = WB usa ALU result; 1 = usa lectura de memoria |
+| 2 | `Jump` | 1 | 0–1 | Instrucción de salto (JAL/JALR): escribe rd con PC+4 |
+| 3 | `Halt` | 1 | 0–1 | Instrucción HALT: congelará el pipeline tras WB |
+
+**Ejemplo decodificación:**
+
+- `MEM/WB.ctrl = 0x1` → `RegWrite=1, MemToReg=0, Jump=0, Halt=0`  
+  **→ Write-back ALU result** (aritmética, R-type, I-type).
+
+- `MEM/WB.ctrl = 0x3` → `RegWrite=1, MemToReg=1, Jump=0, Halt=0`  
+  **→ Write-back dato de memoria** (Load).
+
+- `MEM/WB.ctrl = 0x5` → `RegWrite=1, MemToReg=0, Jump=1, Halt=0`  
+  **→ Write-back PC+4 (JAL/JALR):** enlace de retorno.
+
+- `MEM/WB.ctrl = 0x8` → `RegWrite=0, MemToReg=0, Jump=0, Halt=1`  
+  **→ HALT:** no escribe, detiene la ejecución.
+
+### Tabla rápida: instrucciones y sus `ctrl`
+
+| Instrucción | Tipo | `ID/EX.ctrl` | `EX/MEM.ctrl` | `MEM/WB.ctrl` | Notas |
+|-------------|------|--------------|---------------|---------------|-------|
+| ADD, SUB, AND, OR | R-type | `0x001` | `0x009` | `0x001` | ALU → rd |
+| ADDI, ANDI, ORI | I-arith | `0x307` | `0x009` | `0x001` | imm → ALU → rd |
+| LW, LB, LH | Load | `0x333` | `0x00B` | `0x003` | addr = rs1 + imm; mem → rd |
+| SW, SB, SH | Store | `0x232` | `0x004` | `0x000` | mem[rs1 + imm] = rs2; no rd |
+| BEQ, BNE, BLT, BGE | Branch | `0x0F0` | `0x010` o `0x110`* | `0x000` | *si zero=1 (tomado) |
+| JAL | Jump | `0x110` | `0x020` | `0x005` | PC+4 → rd (link) |
+| JALR | Jump-Reg | `0x630** | `0x060` | `0x005` | PC+4 → rd; rs1+imm → target |
+| LUI | Load Upper | `0x703` | `0x009` | `0x001` | imm<<12 → rd |
+| HALT | Halt | `0x800` | `0x180` | `0x008` | Fin de programa |
+
+> `*` El bit `zero` se calcula en EX, así que vale 0 o 1 según si la rama se toma. `**` ALUSrc=1, ALUOp=00 (ADD useless).
 
 ---
 
