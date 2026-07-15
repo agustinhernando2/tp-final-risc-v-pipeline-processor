@@ -20,10 +20,20 @@ module DataMemory #(
     logic [DATA_WIDTH-1:0] r_mem[2**NB_ADDR-1:0];
 
     // Synchronous write with byte/halfword/word granularity
+    // always_ff @(posedge i_clk) begin
+    //     if (i_reset) begin
+    //         for (int i = 0; i < 2 ** NB_ADDR; i++) r_mem[i] <= '0;
+    //     end else if (i_mem_write) begin
+    //         case (i_funct3[1:0])
+    //             2'b00:   r_mem[i_addr][7:0] <= i_write_data[7:0];  // SB: byte
+    //             2'b01:   r_mem[i_addr][15:0] <= i_write_data[15:0];  // SH: halfword
+    //             2'b10:   r_mem[i_addr] <= i_write_data;  // SW: word
+    //             default: r_mem[i_addr] <= i_write_data;
+    //         endcase
+    //     end
+    // end
     always_ff @(posedge i_clk) begin
-        if (i_reset) begin
-            for (int i = 0; i < 2 ** NB_ADDR; i++) r_mem[i] <= '0;
-        end else if (i_mem_write) begin
+        if (i_mem_write) begin
             case (i_funct3[1:0])
                 2'b00:   r_mem[i_addr][7:0] <= i_write_data[7:0];  // SB: byte
                 2'b01:   r_mem[i_addr][15:0] <= i_write_data[15:0];  // SH: halfword

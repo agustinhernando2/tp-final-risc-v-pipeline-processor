@@ -1,4 +1,4 @@
-# 04_loop_jal.s — Bucle con branch hacia atrás + subrutina con JAL/JALR
+# 04_loop_jal.s - Bucle con branch hacia atrás + subrutina con JAL/JALR
 #
 # Qué demuestra: un bucle controlado por un branch hacia atrás (acumula una suma)
 # y una llamada a subrutina con JAL (guarda la dirección de retorno en ra) que

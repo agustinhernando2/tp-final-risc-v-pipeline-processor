@@ -1,4 +1,4 @@
-# 02_load_use.s — Dependencia lectura-tras-escritura (RAW) y load-use
+# 02_load_use.s  Dependencia lectura-tras-escritura (RAW) y load-use
 #
 # Qué demuestra: una dependencia de datos donde una instrucción usa un valor
 # recién cargado de memoria. El `addi` necesita el resultado del `lw`, que todavía

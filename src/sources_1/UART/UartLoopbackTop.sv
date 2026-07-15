@@ -1,51 +1,51 @@
 `timescale 1ns / 1ps
 
 // =============================================================================
-// UartLoopbackTop  -  Top de prueba en placa (echo / loopback)
+// UartLoopbackTop  -  On-board test top (echo / loopback)
 // -----------------------------------------------------------------------------
-// Top mínimo para validar la UART directamente en la Basys-3, SIN depender del
-// pipeline ni de la unidad de debug (Stage 9b). Reenvía por TX cada byte que
-// llega por RX (eco), y muestra el último byte recibido en los 8 LEDs.
+// Minimal top to validate the UART directly on the Basys-3, WITHOUT depending on
+// the pipeline or the debug unit. Echoes back over TX every byte that arrives on
+// RX, and shows the last received byte on the 8 LEDs.
 //
-// Prueba esperada (con .claude/skills/program-board/scripts/uart_echo_test.py): se envía una secuencia de
-// bytes al puerto serie y se verifica que vuelvan idénticos.
+// Expected test: send a sequence of bytes to the serial port and verify they
+// come back identical.
 //
-// Manejo de solapamiento: si llega un byte mientras el TX todavía está
-// transmitiendo el anterior, se guarda en r_byte con un flag r_pending y se
-// emite en cuanto el TX queda libre. A 19200 baud con eco inmediato no debería
-// ocurrir (RX y TX van a la misma velocidad), pero el flag lo cubre igual.
+// Overlap handling: if a byte arrives while TX is still sending the previous one,
+// it is stored in r_byte with an r_pending flag and emitted as soon as TX is
+// free. At 19200 baud with immediate echo this should not happen (RX and TX run
+// at the same rate), but the flag covers it anyway.
 //
-// Pines (ver src/constrs_1/new/basys3_uart_loopback.xdc):
+// Pins (see src/constrs_1/new/basys3_uart_loopback.xdc):
 //   i_clk   = W5  (100 MHz)
 //   i_reset = btn
-//   i_rx    = B18 (RX del puente USB-UART -> FPGA)
-//   o_tx    = A18 (TX del FPGA -> puente USB-UART)
+//   i_rx    = B18 (USB-UART bridge RX -> FPGA)
+//   o_tx    = A18 (FPGA TX -> USB-UART bridge)
 //   o_led   = LEDs
 // =============================================================================
 module UartLoopbackTop #(
     parameter int CLK      = 100_000_000,  // 100 MHz
     parameter int BAUDRATE = 19200,        // baud rate
-    parameter int NB_DATA  = 8             // bits por byte
+    parameter int NB_DATA  = 8             // bits per byte
 ) (
-    input logic i_clk,    // reloj 100 MHz (W5)
-    input logic i_reset,  // reset sincronico activo-alto (boton)
-    input logic i_rx,     // linea serie de entrada
+    input logic i_clk,    // 100 MHz clock (W5)
+    input logic i_reset,  // synchronous active-high reset (button)
+    input logic i_rx,     // serial input line
 
-    output logic               o_tx,  // linea serie de salida
-    output logic [NB_DATA-1:0] o_led  // ultimo byte recibido (debug visual)
+    output logic               o_tx,  // serial output line
+    output logic [NB_DATA-1:0] o_led  // last received byte (visual debug)
 );
 
-    // --- Senales hacia/desde la UART --------------------------------------
+    // --- UART signals -----------------------------------------------------
     logic [NB_DATA-1:0] w_rx_data;
     logic               w_rx_done_tick;
     logic               w_tx_done_tick;
 
-    // --- Estado del eco ---------------------------------------------------
-    logic [NB_DATA-1:0] r_byte;  // byte capturado, pendiente de reenviar
-    logic               r_pending;  // hay un byte esperando para transmitir
-    logic               r_tx_busy;  // el TX esta transmitiendo
+    // --- Echo state -------------------------------------------------------
+    logic [NB_DATA-1:0] r_byte;  // captured byte, pending re-send
+    logic               r_pending;  // a byte is waiting to transmit
+    logic               r_tx_busy;  // TX is transmitting
 
-    // Se lanza la transmision cuando hay un byte pendiente y el TX esta libre.
+    // Start transmission when there is a pending byte and TX is free.
     logic               w_tx_start;
     assign w_tx_start = r_pending & ~r_tx_busy;
 
@@ -55,18 +55,18 @@ module UartLoopbackTop #(
             r_pending <= 1'b0;
             r_tx_busy <= 1'b0;
         end else begin
-            // Lanzar transmision: consume el pendiente y marca el TX ocupado.
+            // Start transmission: consume the pending byte and mark TX busy.
             if (w_tx_start) begin
                 r_pending <= 1'b0;
                 r_tx_busy <= 1'b1;
             end
-            // Fin de transmision: el TX queda libre.
+            // End of transmission: TX becomes free.
             if (w_tx_done_tick) begin
                 r_tx_busy <= 1'b0;
             end
-            // Capturar byte entrante (tiene prioridad sobre el clear de
-            // r_pending de arriba para no perder un byte que llegue justo
-            // al lanzar el anterior).
+            // Capture incoming byte (takes priority over the r_pending clear
+            // above so a byte arriving right as the previous one is launched is
+            // not lost).
             if (w_rx_done_tick) begin
                 r_byte    <= w_rx_data;
                 r_pending <= 1'b1;
@@ -74,10 +74,10 @@ module UartLoopbackTop #(
         end
     end
 
-    // Espejo del ultimo byte recibido en los LEDs.
+    // Mirror the last received byte on the LEDs.
     assign o_led = r_byte;
 
-    // --- Instancia de la UART ---------------------------------------------
+    // --- UART instance ----------------------------------------------------
     Uart #(
         .CLK     (CLK),
         .BAUDRATE(BAUDRATE),

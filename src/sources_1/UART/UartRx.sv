@@ -1,50 +1,50 @@
 `timescale 1ns / 1ps
 
 // =============================================================================
-// UartRx  -  Receptor UART (8N1)
+// UartRx  -  UART receiver (8N1)
 // -----------------------------------------------------------------------------
-// Recibe un byte serie (formato 1 start bit, DBIT bits de datos LSB-first,
-// 1 stop bit) y lo entrega en paralelo por o_data, pulsando o_rx_done_tick un
-// ciclo cuando la recepcion termina.
+// Receives a serial byte (1 start bit, DBIT data bits LSB-first, 1 stop bit) and
+// delivers it in parallel on o_data, pulsing o_rx_done_tick for one cycle when
+// reception completes.
 //
-// Sincronizacion: usa el "tick" del BaudRateGenerator (i_s_tick), que pulsa
-// SB_TICK veces por bit. La linea i_rx esta en reposo en alto (1).
+// Synchronization: uses the BaudRateGenerator tick (i_s_tick), which pulses
+// SB_TICK times per bit. The i_rx line idles high (1).
 //
-// Maquina de estados:
-//   IDLE  -> espera el flanco de bajada (start bit -> i_rx = 0)
-//   START -> cuenta hasta la mitad del start bit (tick 7 de 16) para alinear
-//            el muestreo al centro de cada bit
-//   DATA  -> cada SB_TICK ticks muestrea i_rx y lo mete por el MSB del
-//            registro de desplazamiento (recibe LSB primero)
-//   STOP  -> espera el stop bit completo y pulsa o_rx_done_tick
+// State machine:
+//   IDLE  -> waits for the falling edge (start bit -> i_rx = 0)
+//   START -> counts to the middle of the start bit (tick 7 of 16) to align
+//            sampling to the center of each bit
+//   DATA  -> every SB_TICK ticks, samples i_rx into the MSB of the shift
+//            register (LSB received first)
+//   STOP  -> waits for the full stop bit and pulses o_rx_done_tick
 // =============================================================================
 module UartRx #(
     parameter int DBIT    = 8,
-    parameter int SB_TICK = 16   // ticks por bit (= OVERSAMPLE del baud gen)
+    parameter int SB_TICK = 16   // ticks per bit (= baud gen OVERSAMPLE)
 ) (
     input logic i_clk,
     input logic i_reset,
     input logic i_rx,
-    input logic i_s_tick, // tick del BaudRateGenerator
+    input logic i_s_tick, // BaudRateGenerator tick
 
-    output logic            o_rx_done_tick,  // pulso de 1 ciclo: byte recibido
-    output logic [DBIT-1:0] o_data           // byte recibido
+    output logic            o_rx_done_tick,  // 1-cycle pulse: byte received
+    output logic [DBIT-1:0] o_data           // received byte
 );
 
-    // Estados de la FSM.
+    // FSM states.
     typedef enum logic [1:0] {
-        IDLE,   // esperando start bit
-        START,  // alineando al centro del start bit
-        DATA,   // recibiendo bits de datos
-        STOP    // esperando stop bit
+        IDLE,   // waiting for start bit
+        START,  // aligning to the center of the start bit
+        DATA,   // receiving data bits
+        STOP    // waiting for stop bit
     } state_t;
 
     state_t r_state, w_next_state;
-    logic [$clog2(SB_TICK)-1:0] r_tick_cnt, w_next_tick_cnt;  // contador de ticks dentro del bit
-    logic [$clog2(DBIT)-1:0] r_data_cnt, w_next_data_cnt;  // contador de bits de datos
-    logic [DBIT-1:0] r_shiftreg, w_next_shiftreg;  // registro de desplazamiento
+    logic [$clog2(SB_TICK)-1:0] r_tick_cnt, w_next_tick_cnt;  // tick counter within a bit
+    logic [$clog2(DBIT)-1:0] r_data_cnt, w_next_data_cnt;  // data-bit counter
+    logic [DBIT-1:0] r_shiftreg, w_next_shiftreg;  // shift register
 
-    // --- Registros de estado (secuencial) ---------------------------------
+    // --- State registers (sequential) -------------------------------------
     always_ff @(posedge i_clk) begin
         if (i_reset) begin
             r_state    <= IDLE;
@@ -59,9 +59,9 @@ module UartRx #(
         end
     end
 
-    // --- Logica de proximo estado (combinacional) -------------------------
+    // --- Next-state logic (combinational) ---------------------------------
     always_comb begin
-        // valores por defecto: mantener estado
+        // defaults: hold state
         w_next_state    = r_state;
         w_next_tick_cnt = r_tick_cnt;
         w_next_data_cnt = r_data_cnt;
@@ -70,7 +70,7 @@ module UartRx #(
 
         case (r_state)
             IDLE: begin
-                // Detecta el start bit: la linea cae a 0.
+                // Detect the start bit: line drops to 0.
                 if (~i_rx) begin
                     w_next_state    = START;
                     w_next_tick_cnt = '0;
@@ -78,8 +78,8 @@ module UartRx #(
             end
 
             START: begin
-                // Avanza tick a tick hasta la mitad del start bit (tick 7),
-                // asi a partir de ahi muestreamos en el centro de cada bit.
+                // Advance tick by tick to the middle of the start bit (tick 7),
+                // so from there on we sample at the center of each bit.
                 if (i_s_tick) begin
                     if (r_tick_cnt == (SB_TICK / 2 - 1)) begin
                         w_next_state    = DATA;
@@ -92,11 +92,11 @@ module UartRx #(
             end
 
             DATA: begin
-                // Un bit completo cada SB_TICK ticks.
+                // One full bit every SB_TICK ticks.
                 if (i_s_tick) begin
                     if (r_tick_cnt == (SB_TICK - 1)) begin
                         w_next_tick_cnt = '0;
-                        //  1 bit + 7 bits descartando el LBS del registro de desplazamiento
+                        // shift new bit into the MSB, dropping the current LSB
                         w_next_shiftreg = {i_rx, r_shiftreg[DBIT-1:1]};
                         if (r_data_cnt == (DBIT - 1)) begin
                             w_next_state = STOP;
@@ -110,7 +110,7 @@ module UartRx #(
             end
 
             STOP: begin
-                // Espera el stop bit completo y marca recepcion terminada.
+                // Wait for the full stop bit and flag reception complete.
                 if (i_s_tick) begin
                     if (r_tick_cnt == (SB_TICK - 1)) begin
                         w_next_state   = IDLE;

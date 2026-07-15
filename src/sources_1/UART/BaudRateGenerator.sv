@@ -3,33 +3,32 @@
 // =============================================================================
 // BaudRateGenerator
 // -----------------------------------------------------------------------------
-// Genera un pulso de un ciclo de reloj (o_tick) a una frecuencia de
-// BAUDRATE * OVERSAMPLE Hz. Ese "tick" es el que usan UartRx y UartTx para
-// muestrear / emitir bits con sobre-muestreo (oversampling) de OVERSAMPLE
-// veces por bit.
+// Generates a single-clock-cycle pulse (o_tick) at BAUDRATE * OVERSAMPLE Hz.
+// UartRx and UartTx use this tick to sample / drive bits with OVERSAMPLE-times
+// oversampling per bit.
 //
-// Formula del divisor (Baud Rate Generator):
+// Divisor formula:
 //     N_CONT = f_clk / (BAUDRATE * OVERSAMPLE)
 //
-// Ejemplo Basys-3 @ 100 MHz, 19200 baud, 16x:
-//     N_CONT = 100_000_000 / (19200 * 16) = 325,5 -> 325
-//     Baud real = 100e6 / (325 * 16) = 19230 baud  (error < 0,2 %, OK para UART)
+// Example @ 100 MHz, 19200 baud, 16x:
+//     N_CONT = 100_000_000 / (19200 * 16) = 325.5 -> 325
+//     Actual baud = 100e6 / (325 * 16) = 19230 baud  (error < 0.2 %, fine for UART)
 //
-// El contador cuenta de 0 a N_CONT-1 y, al llegar a N_CONT-1, emite el tick y
-// vuelve a 0. El periodo del tick es por lo tanto exactamente N_CONT ciclos.
+// The counter runs 0..N_CONT-1; on reaching N_CONT-1 it emits the tick and wraps
+// to 0, so the tick period is exactly N_CONT cycles.
 // =============================================================================
 module BaudRateGenerator #(
-    parameter int CLK        = 100_000_000,  // frecuencia del reloj de entrada [Hz]
-    parameter int BAUDRATE   = 19200,        // tasa de baudios [bits/s]
-    parameter int OVERSAMPLE = 16            // ticks por bit (sobre-muestreo)
+    parameter int CLK        = 100_000_000,  // input clock frequency [Hz]
+    parameter int BAUDRATE   = 19200,        // baud rate [bits/s]
+    parameter int OVERSAMPLE = 16            // ticks per bit (oversampling)
 ) (
-    input logic i_clk,   // reloj del sistema
-    input logic i_reset, // reset sincronico activo-alto
+    input logic i_clk,   // system clock
+    input logic i_reset, // synchronous active-high reset
 
-    output logic o_tick  // pulso de 1 ciclo a BAUDRATE*OVERSAMPLE Hz
+    output logic o_tick  // 1-cycle pulse at BAUDRATE*OVERSAMPLE Hz
 );
 
-    // Numero de ciclos de reloj entre ticks y bits necesarios para contarlos.
+    // Clock cycles between ticks, and the bits needed to count them.
     localparam int N_CONT = CLK / (BAUDRATE * OVERSAMPLE);
     localparam int N_BITS = (N_CONT > 1) ? $clog2(N_CONT) : 1;
 
@@ -39,13 +38,13 @@ module BaudRateGenerator #(
         if (i_reset) begin
             r_counter <= '0;
         end else if (r_counter == N_BITS'(N_CONT - 1)) begin
-            r_counter <= '0;  // reinicia el contador en el ultimo ciclo
+            r_counter <= '0;  // wrap on the last cycle
         end else begin
             r_counter <= r_counter + 1'b1;
         end
     end
 
-    // El tick es un pulso de exactamente un ciclo de reloj.
+    // The tick is a pulse of exactly one clock cycle.
     assign o_tick = (r_counter == N_BITS'(N_CONT - 1));
 
 endmodule

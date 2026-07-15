@@ -1,58 +1,58 @@
 `timescale 1ns / 1ps
 
 // =============================================================================
-// UartTx  -  Transmisor UART (8N1)
+// UartTx  -  UART transmitter (8N1)
 // -----------------------------------------------------------------------------
-// Transmite un byte en serie (1 start bit, DBIT bits de datos LSB-first,
-// 1 stop bit). La transmision arranca con un pulso en i_tx_start, que captura
-// i_data. Al terminar pulsa o_tx_done_tick un ciclo. La linea o_tx queda en
-// reposo en alto (1) cuando no transmite.
+// Transmits a byte serially (1 start bit, DBIT data bits LSB-first, 1 stop bit).
+// Transmission starts on a pulse of i_tx_start, which captures i_data. When done
+// it pulses o_tx_done_tick for one cycle. The o_tx line idles high (1) when not
+// transmitting.
 //
-// Sincronizacion: usa el "tick" del BaudRateGenerator (i_s_tick). Cada bit dura
+// Synchronization: uses the BaudRateGenerator tick (i_s_tick). Each bit lasts
 // SB_TICK ticks.
 //
-// Maquina de estados:
-//   IDLE  -> o_tx = 1; al recibir i_tx_start carga i_data y arranca
-//   START -> o_tx = 0 durante un bit (start bit)
-//   DATA  -> emite shiftreg[0] (LSB) y desplaza a la derecha cada SB_TICK ticks
-//   STOP  -> o_tx = 1 durante un bit (stop bit) y pulsa o_tx_done_tick
+// State machine:
+//   IDLE  -> o_tx = 1; on i_tx_start, loads i_data and starts
+//   START -> o_tx = 0 for one bit (start bit)
+//   DATA  -> drives shiftreg[0] (LSB) and shifts right every SB_TICK ticks
+//   STOP  -> o_tx = 1 for one bit (stop bit) and pulses o_tx_done_tick
 // =============================================================================
 module UartTx #(
-    parameter int DBIT    = 8,   // bits de datos por trama
-    parameter int SB_TICK = 16   // ticks por bit (= OVERSAMPLE del baud gen)
+    parameter int DBIT    = 8,   // data bits per frame
+    parameter int SB_TICK = 16   // ticks per bit (= baud gen OVERSAMPLE)
 ) (
-    input logic            i_clk,       // reloj del sistema
-    input logic            i_reset,     // reset sincronico activo-alto
-    input logic            i_tx_start,  // pulso: iniciar transmision
-    input logic            i_s_tick,    // tick del BaudRateGenerator
-    input logic [DBIT-1:0] i_data,      // byte a transmitir
+    input logic            i_clk,       // system clock
+    input logic            i_reset,     // synchronous active-high reset
+    input logic            i_tx_start,  // pulse: start transmission
+    input logic            i_s_tick,    // BaudRateGenerator tick
+    input logic [DBIT-1:0] i_data,      // byte to transmit
 
-    output logic o_tx_done_tick,  // pulso de 1 ciclo: transmision lista
-    output logic o_tx             // linea serie de salida (reposo en 1)
+    output logic o_tx_done_tick,  // 1-cycle pulse: transmission done
+    output logic o_tx             // serial output line (idles high)
 );
 
-    // Estados de la FSM.
+    // FSM states.
     typedef enum logic [1:0] {
-        IDLE,   // en reposo, esperando i_tx_start
-        START,  // enviando start bit
-        DATA,   // enviando bits de datos
-        STOP    // enviando stop bit
+        IDLE,   // idle, waiting for i_tx_start
+        START,  // sending start bit
+        DATA,   // sending data bits
+        STOP    // sending stop bit
     } state_t;
 
     state_t r_state, w_next_state;
-    logic [$clog2(SB_TICK)-1:0] r_tick_cnt, w_next_tick_cnt;  // contador de ticks dentro del bit
-    logic [$clog2(DBIT)-1:0] r_data_cnt, w_next_data_cnt;  // contador de bits de datos
-    logic [DBIT-1:0] r_shiftreg, w_next_shiftreg;  // registro de desplazamiento
-    logic r_tx, w_next_tx;  // valor registrado de la linea TX
+    logic [$clog2(SB_TICK)-1:0] r_tick_cnt, w_next_tick_cnt;  // tick counter within a bit
+    logic [$clog2(DBIT)-1:0] r_data_cnt, w_next_data_cnt;  // data-bit counter
+    logic [DBIT-1:0] r_shiftreg, w_next_shiftreg;  // shift register
+    logic r_tx, w_next_tx;  // registered TX line value
 
-    // --- Registros de estado (secuencial) ---------------------------------
+    // --- State registers (sequential) -------------------------------------
     always_ff @(posedge i_clk) begin
         if (i_reset) begin
             r_state    <= IDLE;
             r_tick_cnt <= '0;
             r_data_cnt <= '0;
             r_shiftreg <= '0;
-            r_tx       <= 1'b1;  // linea en reposo (alto)
+            r_tx       <= 1'b1;  // line idle (high)
         end else begin
             r_state    <= w_next_state;
             r_tick_cnt <= w_next_tick_cnt;
@@ -62,9 +62,9 @@ module UartTx #(
         end
     end
 
-    // --- Logica de proximo estado (combinacional) -------------------------
+    // --- Next-state logic (combinational) ---------------------------------
     always_comb begin
-        // valores por defecto: mantener estado
+        // defaults: hold state
         w_next_state    = r_state;
         w_next_tick_cnt = r_tick_cnt;
         w_next_data_cnt = r_data_cnt;
@@ -74,11 +74,11 @@ module UartTx #(
 
         case (r_state)
             IDLE: begin
-                w_next_tx = 1'b1;  // linea en reposo
+                w_next_tx = 1'b1;  // line idle
                 if (i_tx_start) begin
                     w_next_state    = START;
                     w_next_tick_cnt = '0;
-                    w_next_shiftreg = i_data;  // captura el byte a transmitir
+                    w_next_shiftreg = i_data;  // capture the byte to transmit
                 end
             end
 
@@ -96,13 +96,13 @@ module UartTx #(
             end
 
             DATA: begin
-                w_next_tx = r_shiftreg[0];  // emite el LSB
+                w_next_tx = r_shiftreg[0];  // drive the LSB
                 if (i_s_tick) begin
                     if (r_tick_cnt == (SB_TICK - 1)) begin
                         w_next_tick_cnt = '0;
-                        w_next_shiftreg = r_shiftreg >> 1;  // siguiente bit al LSB
+                        w_next_shiftreg = r_shiftreg >> 1;  // next bit to the LSB
                         if (r_data_cnt == (DBIT - 1)) begin
-                            w_next_state = STOP;  // ya se enviaron todos los bits
+                            w_next_state = STOP;  // all bits sent
                         end else begin
                             w_next_data_cnt = r_data_cnt + 1'b1;
                         end

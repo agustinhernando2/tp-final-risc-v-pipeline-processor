@@ -1,55 +1,47 @@
 `timescale 1ns / 1ps
 
 // =============================================================================
-// RiscvTop  -  Top de síntesis (SoC) para la Basys-3
+// RiscvTop  -  Synthesis top (SoC) for the Basys-3
 // -----------------------------------------------------------------------------
-// Integra el procesador RISC-V con su interfaz externa:
-//   - Uart       : transceptor serie 8N1 (carga de programa / dump de estado)
-//   - DebugUnit  : FSM de control (carga, ejecución continua/paso a paso, dump)
-//   - RISCV      : el core de 5 etapas (pipeline IF/ID/EX/MEM/WB)
+// Integrates the RISC-V processor with its external interface:
+//   - Uart       : 8N1 serial transceiver (program load / state dump)
+//   - DebugUnit  : control FSM (load, continuous/step-by-step run, dump)
+//   - RISCV      : the 5-stage core (IF/ID/EX/MEM/WB pipeline)
 //
-// Es el equivalente RISC-V del TOP.v del proyecto MIPS de base. Este es el módulo
-// que se sintetiza y se programa en la placa (no el core RISCV directamente).
+// This is the module synthesized and programmed onto the board (not the bare
+// RISCV core).
 //
-// Pines (ver src/constrs_1/new/basys3_riscv.xdc):
-//   i_clk=W5 (100 MHz), i_reset=btn, i_rx=B18, o_tx=A18, o_led=estado FSM.
+// Pins (see src/constrs_1/new/basys3_riscv.xdc):
+//   i_clk=W5 (100 MHz), i_reset=btn, i_rx=B18, o_tx=A18, o_led=FSM state.
 //
-// Reloj (Stage 11 - cierre de timing):
-//   La entrada i_clk de la placa es de 100 MHz, pero el diseno no cierra timing a
-//   esa frecuencia (los caminos de dump core->DebugUnit cruzan posedge->negedge y
-//   solo tienen medio periodo de presupuesto; ver docs/report-20260628.md). Un MMCM
-//   divide el reloj a 65 MHz y todo el SoC corre a 65 MHz, con lo que esos caminos
-//   cierran con margen (WNS +0.319 ns). 65 MHz es el maximo confiable con el datapath
-//   de 32 bits (DATA_WIDTH=32): el barrido docs/report-fmax-sweep-dw32-20260629.md
-//   muestra que el timing aun aguanta ~75 MHz, pero a >=70 MHz la optimizacion por
-//   timing replica registros, explota los control sets y satura el device (~99% de
-//   slices), volviendo el placement irreproducible. A 65 MHz el diseno usa ~61% de
-//   slices y 6% de control sets. El parametro CLK refleja 65 MHz para el divisor de
-//   baudios de la UART (sigue ~19200, error <0.3%).
+// Clock:
+//   The board input i_clk is 100 MHz; an MMCM divides it and the whole SoC runs
+//   at the CLK parameter frequency. CLK must match the actual MMCM output so the
+//   UART baud divisor stays correctly calibrated.
 // =============================================================================
 module RiscvTop #(
-    parameter int CLK         = 65_000_000,  // reloj del SoC tras el MMCM [Hz]
-    parameter int BAUDRATE    = 19200,       // tasa de baudios
+    parameter int CLK         = 75_000_000,  // SoC clock after the MMCM [Hz]
+    parameter int BAUDRATE    = 19200,       // baud rate
     parameter int NB_PC       = 64,
     parameter int NB_INST     = 32,
     parameter int NB_REG      = 5,
     parameter int DATA_WIDTH  = 32,
-    parameter int NB_IADDR    = 8,           // memoria de instrucciones: 256 words
-    parameter int NB_DADDR    = 6,           // memoria de datos: 64 words
-    parameter int IM_WORDS    = 64,          // tamaño de programa (coincide con la GUI)
-    parameter int DM_DEPTH    = 64,          // words de mem de datos en el dump
-    parameter int LATCH_COUNT = 25,          // campos de latches intermedios en el dump
-    parameter int NB_LADDR    = 5            // bits de dirección del dump de latches
+    parameter int NB_IADDR    = 8,           // instruction memory: 256 words
+    parameter int NB_DADDR    = 6,           // data memory: 64 words
+    parameter int IM_WORDS    = 64,          // program size (must match the host GUI)
+    parameter int DM_DEPTH    = 64,          // data memory words in the dump
+    parameter int LATCH_COUNT = 25,          // pipeline latch fields in the dump
+    parameter int NB_LADDR    = 5            // latch dump address width
 ) (
     input  logic       i_clk,
     input  logic       i_reset,
     input  logic       i_rx,
     output logic       o_tx,
-    output logic [7:0] o_led     // estado one-hot de la DebugUnit (debug visual)
+    output logic [7:0] o_led     // DebugUnit one-hot state (visual debug)
 );
 
     // -------------------------------------------------------------------------
-    // Generación de reloj
+    // Clock generation
     // -------------------------------------------------------------------------
 
     logic w_clk;
@@ -63,13 +55,13 @@ module RiscvTop #(
     );
 
     // -------------------------------------------------------------------------
-    // Reset síncrono al dominio de 60 MHz (reset-bridge: assert async, deassert sync)
+    // Reset bridge to the MMCM clock domain (assert async, deassert sync)
     // -------------------------------------------------------------------------
-    // Mantiene el reset activo mientras el MMCM no enganchó (w_locked=0) o se pulsa
-    // i_reset, y lo libera de forma síncrona un par de ciclos después del lock. Es
-    // necesario porque los submódulos usan reset *síncrono*: sin esto, al engancharse
-    // el MMCM el reset caería antes del primer flanco estable y los registros nunca
-    // se inicializarían.
+    // Holds reset asserted while the MMCM is unlocked (w_locked=0) or i_reset is
+    // pressed, and releases it synchronously a couple of cycles after lock. Needed
+    // because the submodules use *synchronous* reset: without this, reset would
+    // deassert before the first stable edge after MMCM lock and the registers would
+    // never initialize.
     logic       w_async_rst;
     logic [1:0] r_rst_sync;
     logic       w_rst;
@@ -83,7 +75,7 @@ module RiscvTop #(
     assign w_rst = r_rst_sync[1];
 
     // -------------------------------------------------------------------------
-    // Interconexión UART <-> DebugUnit
+    // UART <-> DebugUnit interconnect
     // -------------------------------------------------------------------------
     logic [           7:0] w_rx_data;
     logic                  w_rx_done;
@@ -92,7 +84,7 @@ module RiscvTop #(
     logic                  w_tx_start;
 
     // -------------------------------------------------------------------------
-    // Interconexión DebugUnit <-> RISCV core
+    // DebugUnit <-> RISCV core interconnect
     // -------------------------------------------------------------------------
     logic                  w_pipeline_enable;
     logic                  w_imem_wr;

@@ -85,8 +85,8 @@ module ControlUnit #(
                 o_JumpReg  = 1'b1;
                 o_ImmSrc   = 3'b000;
             end
-            7'b0001011: begin  // HALT (custom-0 opcode, 0x0000000B): no escribe nada,
-                o_Halt = 1'b1;  // solo marca fin de programa para vaciar el pipeline
+            7'b0001011: begin  // HALT (custom-0 opcode, 0x0000000B): writes nothing,
+                o_Halt = 1'b1;  // just flags end of program to drain the pipeline
             end
             default: ;
         endcase

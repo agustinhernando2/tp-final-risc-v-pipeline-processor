@@ -140,7 +140,7 @@ class DebugGui(tk.Tk):
                                          ("campo", "hex", "dec"), ("campo", "hex", "valor"))
         pc_frame = ttk.Labelframe(bottom, text="PC", padding=8)
         pc_frame.pack(side="left", fill="y", padx=4)
-        self.pc_lbl = ttk.Label(pc_frame, text="—", font=("Courier New", 14, "bold"))
+        self.pc_lbl = ttk.Label(pc_frame, text="-", font=("Courier New", 14, "bold"))
         self.pc_lbl.pack()
 
     def _make_table(self, parent, title, cols, headers):

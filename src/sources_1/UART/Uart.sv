@@ -1,45 +1,45 @@
 `timescale 1ns / 1ps
 
 // =============================================================================
-// Uart  -  Wrapper UART full-duplex
+// Uart  -  Full-duplex UART wrapper
 // -----------------------------------------------------------------------------
-// Integra en un solo modulo:
-//   - BaudRateGenerator : genera el tick de sobre-muestreo compartido
-//   - UartRx            : recepcion serie -> paralelo
-//   - UartTx            : transmision paralelo -> serie
+// Bundles into a single module:
+//   - BaudRateGenerator : generates the shared oversampling tick
+//   - UartRx            : serial -> parallel reception
+//   - UartTx            : parallel -> serial transmission
 //
-// Configuracion por defecto: 100 MHz de reloj, 19200 baud, 8N1, oversampling 16x.
-// Todos los anchos y la temporizacion son parametrizables.
+// Default configuration: 100 MHz clock, 19200 baud, 8N1, 16x oversampling.
+// All widths and timing are parameterizable.
 //
-// Uso:
-//   - Recepcion: cuando o_rx_done_tick pulsa, o_rx_data tiene el byte valido.
-//   - Transmision: poner el byte en i_tx_data y pulsar i_tx_start un ciclo
-//     (solo cuando el TX este libre); o_tx_done_tick pulsa al terminar.
+// Usage:
+//   - Reception: when o_rx_done_tick pulses, o_rx_data holds the valid byte.
+//   - Transmission: place the byte on i_tx_data and pulse i_tx_start for one
+//     cycle (only while TX is free); o_tx_done_tick pulses when done.
 // =============================================================================
 module Uart #(
-    parameter int CLK        = 100_000_000,  // frecuencia del reloj [Hz]
-    parameter int BAUDRATE   = 19200,        // tasa de baudios [bits/s]
-    parameter int OVERSAMPLE = 16,           // ticks por bit
-    parameter int NB_DATA    = 8             // bits de datos por trama
+    parameter int CLK        = 100_000_000,  // clock frequency [Hz]
+    parameter int BAUDRATE   = 19200,        // baud rate [bits/s]
+    parameter int OVERSAMPLE = 16,           // ticks per bit
+    parameter int NB_DATA    = 8             // data bits per frame
 ) (
-    input logic i_clk,   // reloj del sistema
-    input logic i_reset, // reset sincronico activo-alto
+    input logic i_clk,   // system clock
+    input logic i_reset, // synchronous active-high reset
 
-    // Lado serie
-    input  logic i_rx,  // linea serie de entrada
-    output logic o_tx,  // linea serie de salida
+    // Serial side
+    input  logic i_rx,  // serial input line
+    output logic o_tx,  // serial output line
 
-    // Lado paralelo - recepcion
-    output logic [NB_DATA-1:0] o_rx_data,      // byte recibido
-    output logic               o_rx_done_tick, // pulso: byte recibido
+    // Parallel side - reception
+    output logic [NB_DATA-1:0] o_rx_data,      // received byte
+    output logic               o_rx_done_tick, // pulse: byte received
 
-    // Lado paralelo - transmision
-    input  logic [NB_DATA-1:0] i_tx_data,      // byte a transmitir
-    input  logic               i_tx_start,     // pulso: iniciar transmision
-    output logic               o_tx_done_tick  // pulso: transmision lista
+    // Parallel side - transmission
+    input  logic [NB_DATA-1:0] i_tx_data,      // byte to transmit
+    input  logic               i_tx_start,     // pulse: start transmission
+    output logic               o_tx_done_tick  // pulse: transmission done
 );
 
-    // Tick de sobre-muestreo compartido por RX y TX.
+    // Oversampling tick shared by RX and TX.
     logic w_s_tick;
 
     BaudRateGenerator #(

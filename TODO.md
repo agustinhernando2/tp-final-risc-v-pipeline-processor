@@ -24,7 +24,7 @@ IA: 'Un detalle aparte mientras mirás esto: ese sumador calcula siempre PC + im
 - [x] Correr pruebas a mano
 - [x] Revisar todo el repo y documentar
 - [x] Entender scripts de python
-- [ ] Armar informe PDF 
+- [x] Armar informe PDF 
 
 ## Preguntas para responder
 

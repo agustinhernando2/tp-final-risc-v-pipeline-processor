@@ -17,15 +17,16 @@ module InstructionMemory #(
 
     logic [NB_INST-1:0] r_mem[2**NB_ADDR-1:0];
 
-    initial begin
-        for (int i = 0; i < 2 ** NB_ADDR; i++) r_mem[i] = '0;
-        $readmemh("program.hex", r_mem);
-    end
+    // always_ff @(posedge i_clk) begin
+    //     if (i_reset) begin
+    //         for (int i = 0; i < 2 ** NB_ADDR; i++) r_mem[i] <= '0;
+    //     end else if (i_imem_wr) begin
+    //         r_mem[i_imem_addr] <= i_imem_data;
+    //     end
+    // end
 
     always_ff @(posedge i_clk) begin
-        if (i_reset) begin
-            for (int i = 0; i < 2 ** NB_ADDR; i++) r_mem[i] <= '0;
-        end else if (i_imem_wr) begin
+        if (i_imem_wr) begin
             r_mem[i_imem_addr] <= i_imem_data;
         end
     end

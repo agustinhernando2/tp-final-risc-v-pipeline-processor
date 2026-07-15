@@ -6,7 +6,7 @@ module RISCV #(
     parameter NB_REG     = 5,
     parameter DATA_WIDTH = 64,
     parameter NB_ADDR    = 8,
-    parameter NB_LADDR   = 5    // bits de dirección del dump de latches (>= clog2(LATCH_COUNT))
+    parameter NB_LADDR   = 5    // latch dump address width (>= clog2(LATCH_COUNT))
 ) (
     input  logic                  i_clk,
     input  logic                  i_reset,
@@ -193,7 +193,7 @@ module RISCV #(
         .i_clk        (i_clk),
         .i_reset      (i_reset),
         .i_enable     (i_if_enable),
-        .i_flush      (w_ID_EX_flush | w_PCSrc),
+        .i_flush      ((w_ID_EX_flush | w_PCSrc) & i_if_enable),
         .i_PC         (w_if_id_pc),
         .i_pc_plus_4  (w_if_id_pc_plus_4),
         .i_read_data_1(w_id_read_data_1),

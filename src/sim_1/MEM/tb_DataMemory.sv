@@ -171,14 +171,18 @@ module tb_DataMemory;
         read_halfword_unsigned(4'h6);
         check("LHU zero-extend 0xFFFF", read_data, 32'h0000FFFF);
 
-        // Test 8: Reset clears memory
+        // Test 8: Reset does NOT clear memory (data persists so the array maps
+        // to BRAM instead of distributed flip-flops). Program/data are reloaded
+        // over UART, so a memory-clearing reset is neither needed nor wanted.
         $display("--- Reset behavior ---");
+        write_word(4'h0, 32'hDEADBEEF);
+        tick();
         reset = 1;
         tick();
         reset = 0;
         tick();
         read_word(4'h0);
-        check("memory cleared after reset", read_data, 32'h00000000);
+        check("memory retained across reset", read_data, 32'hDEADBEEF);
 
         // Test 9: Byte write doesn't corrupt upper bits
         $display("--- Byte write isolation ---");
