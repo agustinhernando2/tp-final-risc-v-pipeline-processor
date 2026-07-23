@@ -1,0 +1,2256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>De Verilog a SystemVerilog — Guía Completa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,400&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f1e7;
+    --bg-soft: #ede5d3;
+    --bg-card: #fbf8f1;
+    --paper: #fefcf6;
+    --ink: #1a2332;
+    --ink-soft: #3d4a5c;
+    --ink-muted: #6b7689;
+    --rule: #d9cfb8;
+    --rule-soft: #e8dfc9;
+    --accent: #1d3557;
+    --accent-2: #c97b3c;
+    --accent-3: #5a7a52;
+    --highlight: #f4d35e;
+    --code-bg: #1a1f2e;
+    --code-fg: #e8e3d4;
+    --code-comment: #8a9aa8;
+    --code-keyword: #ffb86c;
+    --code-string: #a3d977;
+    --code-type: #82b1ff;
+    --code-num: #ff79c6;
+    --shadow: 0 1px 0 rgba(26, 35, 50, 0.04), 0 4px 20px -8px rgba(26, 35, 50, 0.08);
+    --shadow-lg: 0 20px 60px -20px rgba(26, 35, 50, 0.18);
+    --grain-opacity: 0.4;
+    --bg-radial-1: rgba(201, 123, 60, 0.05);
+    --bg-radial-2: rgba(29, 53, 87, 0.04);
+    --hover-bg: rgba(244, 211, 94, 0.06);
+  }
+
+  [data-theme="dark"] {
+    --bg: #14171f;
+    --bg-soft: #1d2230;
+    --bg-card: #1a1f2b;
+    --paper: #1f2532;
+    --ink: #e8e6df;
+    --ink-soft: #b8b5ab;
+    --ink-muted: #7d8295;
+    --rule: #2d3447;
+    --rule-soft: #232938;
+    --accent: #8ab0d8;
+    --accent-2: #e89968;
+    --accent-3: #8fb586;
+    --highlight: #f4d35e;
+    --code-bg: #0f131c;
+    --code-fg: #e8e3d4;
+    --code-comment: #6b7589;
+    --code-keyword: #ffb86c;
+    --code-string: #a3d977;
+    --code-type: #82b1ff;
+    --code-num: #ff79c6;
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 4px 20px -8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 20px 60px -20px rgba(0, 0, 0, 0.6);
+    --grain-opacity: 0.15;
+    --bg-radial-1: rgba(232, 153, 104, 0.06);
+    --bg-radial-2: rgba(138, 176, 216, 0.05);
+    --hover-bg: rgba(244, 211, 94, 0.04);
+  }
+
+  html {
+    transition: background-color 0.3s ease;
+  }
+
+  body, .top-bar, .sidebar a, pre, .compare-card, .table-wrap, table, th, td,
+  .callout, .reduction-card, .phase-card, .error-item, .hero-stats, footer,
+  .brand-mark {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    font-size: 16px;
+    background-image:
+      radial-gradient(ellipse at top left, var(--bg-radial-1), transparent 50%),
+      radial-gradient(ellipse at bottom right, var(--bg-radial-2), transparent 50%);
+    background-attachment: fixed;
+  }
+
+  /* Grain texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: var(--grain-opacity);
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.1 0 0 0 0 0.1 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: multiply;
+  }
+
+  [data-theme="dark"] body::before {
+    mix-blend-mode: overlay;
+  }
+
+  /* ============= HEADER ============= */
+  .top-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .top-bar-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+  }
+
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    background: var(--accent);
+    display: grid;
+    place-items: center;
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    transform: rotate(-3deg);
+  }
+
+  .top-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .top-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .theme-toggle {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 6px;
+    width: 56px;
+    height: 30px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+  }
+
+  .theme-toggle:hover {
+    border-color: var(--accent-2);
+  }
+
+  .theme-toggle-track {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 2px;
+  }
+
+  .theme-toggle-thumb {
+    position: absolute;
+    top: 50%;
+    left: 4px;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    transition: all 0.35s cubic-bezier(0.4, 0.0, 0.2, 1);
+    box-shadow: 0 2px 6px rgba(26, 35, 50, 0.2);
+  }
+
+  [data-theme="dark"] .theme-toggle-thumb {
+    left: calc(100% - 22px);
+    background: var(--highlight);
+    box-shadow: 0 2px 8px rgba(244, 211, 94, 0.4);
+  }
+
+  .theme-toggle svg {
+    width: 12px;
+    height: 12px;
+    z-index: 1;
+    color: var(--ink-muted);
+    transition: opacity 0.3s ease;
+  }
+
+  .theme-toggle .icon-sun { opacity: 1; }
+  .theme-toggle .icon-moon { opacity: 0.4; }
+  [data-theme="dark"] .theme-toggle .icon-sun { opacity: 0.4; }
+  [data-theme="dark"] .theme-toggle .icon-moon { opacity: 1; }
+
+  @media (max-width: 720px) {
+    .top-meta { display: none; }
+  }
+
+  /* ============= HERO ============= */
+  .hero {
+    position: relative;
+    padding: 90px 32px 60px;
+    max-width: 1400px;
+    margin: 0 auto;
+    z-index: 2;
+  }
+
+  .hero-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent-2);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hero-eyebrow::before {
+    content: '';
+    width: 32px;
+    height: 1px;
+    background: var(--accent-2);
+  }
+
+  .hero-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: clamp(48px, 9vw, 124px);
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+    margin-bottom: 32px;
+    font-variation-settings: "opsz" 144;
+  }
+
+  .hero-title em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 300;
+  }
+
+  .hero-title .ampersand {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 300;
+    color: var(--accent-2);
+    display: inline-block;
+    transform: translateY(0.05em);
+  }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 64px;
+    margin-top: 48px;
+    align-items: end;
+  }
+
+  .hero-lede {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--ink-soft);
+    font-weight: 400;
+    max-width: 60ch;
+  }
+
+  .hero-lede strong {
+    color: var(--ink);
+    font-weight: 500;
+    background: linear-gradient(180deg, transparent 60%, color-mix(in srgb, var(--highlight) 50%, transparent) 60%);
+    padding: 0 2px;
+  }
+
+  .hero-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 28px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    box-shadow: var(--shadow);
+    position: relative;
+  }
+
+  .hero-stats::before {
+    content: 'IEEE 1800';
+    position: absolute;
+    top: -10px;
+    right: 16px;
+    background: var(--accent-2);
+    color: var(--paper);
+    padding: 2px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    border-radius: 2px;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-num {
+    font-family: 'Fraunces', serif;
+    font-size: 40px;
+    font-weight: 500;
+    color: var(--accent);
+    line-height: 1;
+    font-variation-settings: "opsz" 144;
+  }
+
+  .stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* ============= LAYOUT ============= */
+  .layout {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 32px 120px;
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 64px;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* ============= SIDEBAR ============= */
+  .sidebar {
+    position: sticky;
+    top: 80px;
+    align-self: start;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    padding-right: 12px;
+    padding-top: 8px;
+  }
+
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+
+  .sidebar-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .sidebar nav { display: flex; flex-direction: column; gap: 2px; }
+
+  .sidebar a {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--ink-soft);
+    text-decoration: none;
+    padding: 7px 12px;
+    border-radius: 3px;
+    border-left: 2px solid transparent;
+    transition: all 0.15s ease;
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    line-height: 1.3;
+  }
+
+  .sidebar a:hover {
+    color: var(--accent);
+    background: var(--bg-soft);
+    border-left-color: var(--accent-2);
+  }
+
+  .sidebar a.active {
+    color: var(--accent);
+    background: var(--bg-soft);
+    border-left-color: var(--accent);
+    font-weight: 500;
+  }
+
+  .sidebar-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-muted);
+    min-width: 18px;
+  }
+
+  /* ============= CONTENT ============= */
+  .content { min-width: 0; max-width: 880px; }
+
+  section {
+    margin-bottom: 96px;
+    scroll-margin-top: 90px;
+  }
+
+  section[id] {
+    scroll-margin-top: 90px;
+  }
+
+  .section-marker {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .section-num {
+    font-size: 13px;
+    color: var(--accent-2);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  .section-rule {
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+
+  .section-tag {
+    font-size: 10px;
+    color: var(--ink-muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  h2 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(36px, 5vw, 56px);
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    color: var(--ink);
+    margin-bottom: 32px;
+    font-variation-settings: "opsz" 144;
+  }
+
+  h2 em {
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 300;
+  }
+
+  h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 48px 0 16px;
+    letter-spacing: -0.015em;
+  }
+
+  h4 {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 32px 0 12px;
+  }
+
+  p {
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--ink-soft);
+    margin-bottom: 18px;
+  }
+
+  p strong { color: var(--ink); font-weight: 600; }
+
+  p code, li code, td code, .inline-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88em;
+    background: var(--bg-soft);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--rule-soft);
+  }
+
+  ul, ol {
+    margin: 0 0 20px 0;
+    padding-left: 24px;
+  }
+
+  li {
+    color: var(--ink-soft);
+    line-height: 1.7;
+    margin-bottom: 8px;
+  }
+
+  ul li::marker { color: var(--accent-2); }
+
+  /* ============= CODE BLOCKS ============= */
+  pre {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 24px 28px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 20px 0 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.65;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  pre::before {
+    content: attr(data-lang);
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--code-comment);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  pre::-webkit-scrollbar { height: 6px; }
+  pre::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); }
+  pre::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+  .tok-c { color: var(--code-comment); font-style: italic; }
+  .tok-k { color: var(--code-keyword); }
+  .tok-s { color: var(--code-string); }
+  .tok-t { color: var(--code-type); }
+  .tok-n { color: var(--code-num); }
+  .tok-f { color: #f5d76e; }
+  .tok-bad { background: rgba(255, 110, 110, 0.18); border-bottom: 1px dashed #ff8a8a; }
+  .tok-good { background: rgba(140, 220, 140, 0.16); border-bottom: 1px dashed #99e099; }
+
+  /* ============= COMPARE BLOCKS ============= */
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 28px 0;
+  }
+
+  .compare-card {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  .compare-head {
+    padding: 12px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .compare-card.before .compare-head {
+    background: linear-gradient(90deg, color-mix(in srgb, #c97474 18%, var(--paper)), var(--paper));
+    color: #c97474;
+  }
+
+  .compare-card.after .compare-head {
+    background: linear-gradient(90deg, color-mix(in srgb, #6b9263 22%, var(--paper)), var(--paper));
+    color: #6b9263;
+  }
+
+  [data-theme="dark"] .compare-card.before .compare-head { color: #e89898; }
+  [data-theme="dark"] .compare-card.after .compare-head { color: #9fc995; }
+
+  .compare-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .compare-card.before .compare-dot { background: #c97474; }
+  .compare-card.after .compare-dot { background: #6b9263; }
+
+  .compare-card pre {
+    margin: 0;
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
+  }
+
+  /* ============= TABLE ============= */
+  .table-wrap {
+    margin: 24px 0;
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--paper);
+    box-shadow: var(--shadow);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  th {
+    text-align: left;
+    padding: 14px 20px;
+    background: var(--bg-soft);
+    color: var(--ink);
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  td {
+    padding: 14px 20px;
+    color: var(--ink-soft);
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+    line-height: 1.55;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--hover-bg); }
+
+  /* ============= CALLOUTS ============= */
+  .callout {
+    margin: 28px 0;
+    padding: 22px 26px;
+    border-radius: 6px;
+    border-left: 4px solid var(--accent-2);
+    background: var(--paper);
+    box-shadow: var(--shadow);
+    position: relative;
+  }
+
+  .callout-tip { border-left-color: var(--accent-3); background: linear-gradient(135deg, color-mix(in srgb, var(--accent-3) 12%, var(--paper)), var(--paper)); }
+  .callout-warn { border-left-color: var(--accent-2); background: linear-gradient(135deg, color-mix(in srgb, var(--accent-2) 14%, var(--paper)), var(--paper)); }
+  .callout-key { border-left-color: var(--accent); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--paper)), var(--paper)); }
+
+  .callout-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--ink-muted);
+    margin-bottom: 8px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .callout-tip .callout-label { color: var(--accent-3); }
+  .callout-warn .callout-label { color: var(--accent-2); }
+  .callout-key .callout-label { color: var(--accent); }
+
+  .callout p { margin-bottom: 0; color: var(--ink); font-size: 15px; }
+
+  /* ============= STAT CARDS ============= */
+  .reduction-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin: 28px 0;
+  }
+
+  .reduction-card {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s ease;
+  }
+
+  .reduction-card:hover { transform: translateY(-2px); }
+
+  .reduction-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-2) 8%, transparent), transparent 50%);
+    pointer-events: none;
+  }
+
+  .reduction-pct {
+    font-family: 'Fraunces', serif;
+    font-size: 44px;
+    font-weight: 500;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 6px;
+    font-variation-settings: "opsz" 144;
+  }
+
+  .reduction-pct .sign {
+    font-style: italic;
+    font-weight: 300;
+    color: var(--accent-2);
+  }
+
+  .reduction-label {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-bottom: 12px;
+  }
+
+  .reduction-bar {
+    height: 4px;
+    background: var(--bg-soft);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .reduction-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius: 2px;
+  }
+
+  /* ============= ROADMAP ============= */
+  .roadmap {
+    margin: 32px 0;
+    position: relative;
+  }
+
+  .roadmap::before {
+    content: '';
+    position: absolute;
+    left: 18px;
+    top: 12px;
+    bottom: 12px;
+    width: 2px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2), var(--accent-3));
+    border-radius: 1px;
+  }
+
+  .phase {
+    position: relative;
+    padding: 16px 0 16px 56px;
+  }
+
+  .phase-dot {
+    position: absolute;
+    left: 10px;
+    top: 24px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 3px solid var(--accent);
+    z-index: 1;
+  }
+
+  .phase:nth-child(2) .phase-dot { border-color: var(--accent-2); }
+  .phase:nth-child(3) .phase-dot { border-color: var(--accent-3); }
+  .phase:nth-child(4) .phase-dot { border-color: var(--accent); }
+  .phase:nth-child(5) .phase-dot { border-color: var(--accent-2); }
+  .phase:nth-child(6) .phase-dot { border-color: var(--accent-3); }
+  .phase:nth-child(7) .phase-dot { border-color: var(--accent); }
+
+  .phase-card {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 20px 24px;
+    box-shadow: var(--shadow);
+  }
+
+  .phase-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
+  .phase-title {
+    font-family: 'Fraunces', serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .phase-meta {
+    display: flex;
+    gap: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .phase-time { color: var(--accent-2); }
+  .phase-risk { color: var(--ink-muted); }
+
+  .phase-desc { font-size: 14px; color: var(--ink-soft); margin: 0; }
+
+  /* ============= ERROR LIST ============= */
+  .errors {
+    display: grid;
+    gap: 12px;
+    margin: 24px 0;
+  }
+
+  .error-item {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 16px 20px 16px 56px;
+    position: relative;
+    box-shadow: var(--shadow);
+  }
+
+  .error-num {
+    position: absolute;
+    left: 16px;
+    top: 16px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg-soft);
+    color: var(--accent);
+    display: grid;
+    place-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 12px;
+  }
+
+  .error-title {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    color: var(--ink);
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+
+  .error-desc {
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    margin: 0;
+    line-height: 1.55;
+  }
+
+  /* ============= FOOTER ============= */
+  footer {
+    border-top: 1px solid var(--rule);
+    padding: 48px 32px;
+    margin-top: 60px;
+    background: var(--bg-soft);
+    position: relative;
+    z-index: 2;
+  }
+
+  .footer-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 48px;
+  }
+
+  .footer-brand {
+    font-family: 'Fraunces', serif;
+    font-size: 28px;
+    line-height: 1.1;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+
+  .footer-brand em { font-style: italic; color: var(--accent); }
+
+  .footer-tagline {
+    font-size: 14px;
+    color: var(--ink-muted);
+    max-width: 40ch;
+  }
+
+  .footer-col h5 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 16px;
+  }
+
+  .footer-col ul { list-style: none; padding: 0; }
+  .footer-col li { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 8px; }
+
+  .footer-bottom {
+    max-width: 1400px;
+    margin: 32px auto 0;
+    padding-top: 24px;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* ============= ANIMATIONS ============= */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero-eyebrow { animation: fadeUp 0.6s ease 0s backwards; }
+  .hero-title { animation: fadeUp 0.7s ease 0.1s backwards; }
+  .hero-lede { animation: fadeUp 0.7s ease 0.25s backwards; }
+  .hero-stats { animation: fadeUp 0.7s ease 0.4s backwards; }
+
+  /* ============= RESPONSIVE ============= */
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: 1fr; gap: 32px; }
+    .sidebar { position: static; max-height: none; padding: 16px; background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; }
+    .hero-grid { grid-template-columns: 1fr; gap: 32px; }
+  }
+
+  @media (max-width: 720px) {
+    .hero { padding: 60px 20px 40px; }
+    .layout { padding: 0 20px 60px; }
+    .top-bar-inner { padding: 12px 20px; }
+    .compare { grid-template-columns: 1fr; }
+    .footer-inner { grid-template-columns: 1fr; gap: 24px; }
+    .footer-bottom { flex-direction: column; gap: 8px; }
+    pre { padding: 18px; font-size: 12.5px; }
+    .reduction-grid { grid-template-columns: 1fr 1fr; }
+    h2 { font-size: 36px; }
+  }
+
+  /* Highlights & decorative */
+  .mark {
+    background: linear-gradient(180deg, transparent 60%, color-mix(in srgb, var(--highlight) 55%, transparent) 60%);
+    padding: 0 2px;
+  }
+
+  .arrow {
+    display: inline-block;
+    color: var(--accent-2);
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    margin: 0 6px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================ TOP BAR ============================ -->
+<div class="top-bar">
+  <div class="top-bar-inner">
+    <div class="brand">
+      <div class="brand-mark">SV</div>
+      <div>De Verilog <em style="font-style:italic;color:var(--accent-2);">a</em> SystemVerilog</div>
+    </div>
+    <div class="top-right">
+      <div class="top-meta">Guía didáctica · IEEE 1800</div>
+      <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema" title="Cambiar tema">
+        <div class="theme-toggle-track">
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+          <div class="theme-toggle-thumb"></div>
+        </div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ HERO ============================ -->
+<header class="hero">
+  <div class="hero-eyebrow">Una transición progresiva, no una reescritura</div>
+  <h1 class="hero-title">
+    Del <em>cable</em><br>
+    al <span class="ampersand">&</span> sistema<br>
+    de <em>tipos</em>.
+  </h1>
+
+  <div class="hero-grid">
+    <p class="hero-lede">
+      SystemVerilog es un <strong>superset</strong> de Verilog: tu código actual sigue siendo válido. Esta guía te lleva paso a paso desde <code class="inline-code">reg/wire</code> hasta <code class="inline-code">structs packed</code>, <code class="inline-code">enums</code> tipados y <code class="inline-code">assertions</code>, sin romper lo que ya funciona.
+    </p>
+    <div class="hero-stats">
+      <div class="stat">
+        <div class="stat-num">−75<span style="font-size:24px;color:var(--accent-2);">%</span></div>
+        <div class="stat-label">Líneas en buffers</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">−63<span style="font-size:24px;color:var(--accent-2);">%</span></div>
+        <div class="stat-label">Líneas en top-level</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">0</div>
+        <div class="stat-label">Latches accidentales</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">∞</div>
+        <div class="stat-label">Reusabilidad</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============================ LAYOUT ============================ -->
+<div class="layout">
+
+  <!-- =================== SIDEBAR =================== -->
+  <aside class="sidebar">
+    <div class="sidebar-title">Contenido</div>
+    <nav>
+      <a href="#por-que"><span class="sidebar-num">01</span>Por qué migrar</a>
+      <a href="#tipos"><span class="sidebar-num">02</span>Sistema de tipos</a>
+      <a href="#bloques"><span class="sidebar-num">03</span>Bloques procedurales</a>
+      <a href="#structs"><span class="sidebar-num">04</span>Structs packed</a>
+      <a href="#enums"><span class="sidebar-num">05</span>Enums tipados</a>
+      <a href="#packages"><span class="sidebar-num">06</span>Packages</a>
+      <a href="#interfaces"><span class="sidebar-num">07</span>Interfaces &amp; modports</a>
+      <a href="#funciones"><span class="sidebar-num">08</span>Funciones &amp; tasks</a>
+      <a href="#operadores"><span class="sidebar-num">09</span>Operadores nuevos</a>
+      <a href="#case"><span class="sidebar-num">10</span>Unique &amp; priority case</a>
+      <a href="#generate"><span class="sidebar-num">11</span>Generate</a>
+      <a href="#parametros"><span class="sidebar-num">12</span>Parámetros</a>
+      <a href="#assertions"><span class="sidebar-num">13</span>Assertions</a>
+      <a href="#estrategia"><span class="sidebar-num">14</span>Estrategia paso a paso</a>
+      <a href="#practicas"><span class="sidebar-num">15</span>Buenas prácticas</a>
+      <a href="#errores"><span class="sidebar-num">16</span>Errores comunes</a>
+      <a href="#glosario"><span class="sidebar-num">17</span>Glosario</a>
+    </nav>
+  </aside>
+
+  <!-- =================== CONTENT =================== -->
+  <main class="content">
+
+    <!-- ===== 01 ===== -->
+    <section id="por-que">
+      <div class="section-marker">
+        <span class="section-num">§ 01</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Motivación</span>
+      </div>
+      <h2>¿Por qué migrar a <em>SystemVerilog</em>?</h2>
+      <p>
+        Verilog (1995/2001) fue diseñado para <strong>modelar circuitos digitales en simulación</strong>. SystemVerilog (2005, IEEE 1800) lo extiende con un sistema de tipos rico, construcciones para verificación, y bloques especializados que documentan intención.
+      </p>
+
+      <h4>Lo que ganás</h4>
+      <ul>
+        <li>Sistema de tipos más rico — <span class="inline-code">enums</span> tipados, <span class="inline-code">structs</span>, <span class="inline-code">typedef</span>.</li>
+        <li>Construcciones para verificación — <span class="inline-code">assertions</span>, <span class="inline-code">coverage</span>, randomización.</li>
+        <li><strong>Interfaces, modports, packages</strong> — organización del código.</li>
+        <li>Bloques <span class="inline-code">always_comb</span> / <span class="inline-code">always_ff</span> / <span class="inline-code">always_latch</span> que documentan intención y atrapan bugs.</li>
+      </ul>
+
+      <h4>Lo que NO cambia</h4>
+      <ul>
+        <li>La sintaxis general — módulos, puertos, <span class="inline-code">always</span>, signals.</li>
+        <li>La semántica de simulación.</li>
+        <li>El comportamiento del hardware sintetizado.</li>
+        <li>La parametrización con <span class="inline-code">parameter</span> / <span class="inline-code">localparam</span>.</li>
+      </ul>
+
+      <div class="callout callout-key">
+        <div class="callout-label">★ Idea clave</div>
+        <p>SystemVerilog es <strong>superset</strong> de Verilog. Tu código <code class="inline-code">.v</code> sigue compilando y podés mezclar <code class="inline-code">.v</code> con <code class="inline-code">.sv</code> en el mismo proyecto. La migración puede ser gradual, archivo por archivo.</p>
+      </div>
+
+      <h3>Mapa mental: de C a SystemVerilog</h3>
+      <p>Si conocés C, este mapeo te orienta sobre cada concepto:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>En C</th><th>En SystemVerilog</th><th>Nota</th></tr></thead>
+          <tbody>
+            <tr><td><code>int x;</code></td><td><code>logic [31:0] x;</code></td><td>Ancho siempre explícito</td></tr>
+            <tr><td><code>unsigned char</code></td><td><code>logic [7:0]</code></td><td>No hay tipos sin signo automáticos</td></tr>
+            <tr><td><code>struct {...}</code></td><td><code>typedef struct packed {...} t;</code></td><td><code>packed</code> = bits contiguos (sintetizable)</td></tr>
+            <tr><td><code>enum {...}</code></td><td><code>typedef enum logic [N:0] {...} t;</code></td><td>Ancho explícito, fuertemente tipado</td></tr>
+            <tr><td><code>#define X 5</code></td><td><code>localparam X = 5;</code></td><td>Tipado, evaluado en compilación</td></tr>
+            <tr><td>Header <code>.h</code></td><td><code>package ... endpackage</code></td><td>Importable, namespace propio</td></tr>
+            <tr><td><code>#include</code></td><td><code>import pkg::*;</code></td><td>Más controlado</td></tr>
+            <tr><td>Puntero</td><td><strong>NO existe</strong></td><td>El hardware no tiene punteros</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <div class="callout-label">⚡ Combinacional vs Secuencial</div>
+        <p>En C, <code class="inline-code">x = y</code> ocurre en un instante. En SystemVerilog hay <strong>dos</strong> tipos de asignación con semántica completamente distinta — <code class="inline-code">=</code> para combinacional ("x es siempre y") y <code class="inline-code"><=</code> para secuencial ("en el flanco de clock, capturá y en x"). Esto no tiene equivalente en software.</p>
+      </div>
+    </section>
+
+    <!-- ===== 02 ===== -->
+    <section id="tipos">
+      <div class="section-marker">
+        <span class="section-num">§ 02</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Fundamento</span>
+      </div>
+      <h2>El <em>sistema</em> de tipos</h2>
+
+      <h3><span class="inline-code">logic</span> reemplaza a <span class="inline-code">reg</span> y <span class="inline-code">wire</span></h3>
+      <p>En Verilog clásico, la distinción <code class="inline-code">wire</code> / <code class="inline-code">reg</code> confunde porque "reg" suena a registro físico, pero un <code class="inline-code">reg</code> puede ser combinacional. La diferencia real es solo <strong>dónde podés asignar</strong>.</p>
+      <p>SystemVerilog elimina esta distinción: usá <code class="inline-code">logic</code> siempre. El sintetizador determina si es combinacional o secuencial según cómo lo asignes.</p>
+
+      <div class="compare">
+        <div class="compare-card before">
+          <div class="compare-head"><div class="compare-dot"></div>Verilog</div>
+<pre data-lang="verilog"><span class="tok-k">wire</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] suma_v;
+<span class="tok-k">reg</span>  [<span class="tok-n">31</span>:<span class="tok-n">0</span>] contador_v;
+
+<span class="tok-k">assign</span> suma_v = a + b;
+<span class="tok-k">always</span> @(<span class="tok-k">posedge</span> clk)
+    contador_v &lt;= contador_v + <span class="tok-n">1</span>;</pre>
+        </div>
+        <div class="compare-card after">
+          <div class="compare-head"><div class="compare-dot"></div>SystemVerilog</div>
+<pre data-lang="sv"><span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] suma_sv;
+<span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] contador_sv;
+
+<span class="tok-k">assign</span> suma_sv = a + b;
+<span class="tok-k">always_ff</span> @(<span class="tok-k">posedge</span> clk)
+    contador_sv &lt;= contador_sv + <span class="tok-n">1</span>;</pre>
+        </div>
+      </div>
+
+      <h3>Tipos primitivos</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tipo</th><th>Bits</th><th>Estados</th><th>Uso típico</th></tr></thead>
+          <tbody>
+            <tr><td><code>logic</code></td><td>1</td><td>4 (0,1,X,Z)</td><td>RTL general</td></tr>
+            <tr><td><code>logic [N-1:0]</code></td><td>N</td><td>4</td><td>Buses</td></tr>
+            <tr><td><code>bit</code></td><td>1</td><td>2 (0,1)</td><td>Testbench</td></tr>
+            <tr><td><code>byte</code></td><td>8</td><td>2</td><td>(raro en RTL)</td></tr>
+            <tr><td><code>int</code></td><td>32</td><td>2</td><td>Índices de loops</td></tr>
+            <tr><td><code>integer</code></td><td>32</td><td>4</td><td>Loops con X/Z</td></tr>
+            <tr><td><code>string</code></td><td>variable</td><td>—</td><td>Solo simulación</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-tip">
+        <div class="callout-label">✓ Regla práctica</div>
+        <p>Para diseño RTL sintetizable, usá siempre <code class="inline-code">logic</code>. Para variables de simulación (índices de <code class="inline-code">for</code>), usá <code class="inline-code">int</code>.</p>
+      </div>
+
+      <h3>Compuestos: packed vs unpacked</h3>
+<pre data-lang="sv"><span class="tok-c">// Packed: bits contiguos, sintetizable como vector único</span>
+<span class="tok-k">logic</span> [<span class="tok-n">3</span>:<span class="tok-n">0</span>][<span class="tok-n">7</span>:<span class="tok-n">0</span>] packed_arr;     <span class="tok-c">// 32 bits totales</span>
+packed_arr[<span class="tok-n">2</span>] = <span class="tok-n">8'hFF</span>;           <span class="tok-c">// accede al byte 2 (bits [23:16])</span>
+
+<span class="tok-c">// Unpacked: array de elementos independientes (memoria)</span>
+<span class="tok-k">logic</span> [<span class="tok-n">7</span>:<span class="tok-n">0</span>] unpacked_arr [<span class="tok-n">4</span>];    <span class="tok-c">// 4 elementos de 8 bits, modela una memoria</span>
+unpacked_arr[<span class="tok-n">2</span>] = <span class="tok-n">8'hFF</span>;</pre>
+    </section>
+
+    <!-- ===== 03 ===== -->
+    <section id="bloques">
+      <div class="section-marker">
+        <span class="section-num">§ 03</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Procedural</span>
+      </div>
+      <h2>Bloques <em>procedurales</em></h2>
+      <p>Verilog clásico tiene <strong>un solo</strong> tipo de bloque procedural: <code class="inline-code">always</code>. Su comportamiento depende totalmente de la sensitivity list, lo que es propenso a errores.</p>
+
+<pre data-lang="verilog"><span class="tok-c">// Verilog: ¿es combinacional o secuencial? Hay que leer la sensitivity list.</span>
+<span class="tok-k">always</span> @(<span class="tok-k">posedge</span> clk) reg_data &lt;= i_data;       <span class="tok-c">// Secuencial</span>
+<span class="tok-k">always</span> @(*) o_result = a + b;                   <span class="tok-c">// Combinacional</span>
+<span class="tok-k">always</span> @(a) o_result = a + b;                   <span class="tok-bad"><span class="tok-c">// BUG: olvida `b`, latch inferido</span></span></pre>
+
+      <p>SystemVerilog introduce <strong>tres bloques especializados</strong> que documentan intención y son verificados por el compilador:</p>
+
+      <h3><span class="inline-code">always_ff</span> — registros</h3>
+<pre data-lang="sv"><span class="tok-k">always_ff</span> @(<span class="tok-k">posedge</span> clk) <span class="tok-k">begin</span>
+    <span class="tok-k">if</span> (reset) reg_data &lt;= <span class="tok-n">'0</span>;
+    <span class="tok-k">else</span>       reg_data &lt;= i_data;
+<span class="tok-k">end</span></pre>
+      <p>El compilador verifica que solo uses <code class="inline-code"><=</code> (no-bloqueante).</p>
+
+      <h3><span class="inline-code">always_comb</span> — lógica combinacional</h3>
+<pre data-lang="sv"><span class="tok-k">always_comb</span> <span class="tok-k">begin</span>
+    <span class="tok-k">case</span> (op)
+        ADD: o_result = a + b;
+        SUB: o_result = a - b;
+        <span class="tok-k">default</span>: o_result = <span class="tok-n">'0</span>;
+    <span class="tok-k">endcase</span>
+<span class="tok-k">end</span></pre>
+
+      <p>El compilador automáticamente:</p>
+      <ul>
+        <li>Construye la sensitivity list (no podés olvidar una señal).</li>
+        <li>Verifica que toda asignación use <code class="inline-code">=</code> (bloqueante).</li>
+        <li>Detecta y reporta <strong>latches inferidos como error</strong>.</li>
+        <li>Detecta multidrive: dos <code class="inline-code">always_comb</code> asignando la misma señal → error.</li>
+      </ul>
+
+      <div class="callout callout-warn">
+        <div class="callout-label">⚠ Por qué importa</div>
+        <p>Si en un <code class="inline-code">forwardingUnit</code> alguien edita el código y olvida el <code class="inline-code">else</code>, Verilog compila silenciosamente e infiere un latch. SystemVerilog con <code class="inline-code">always_comb</code> reporta error de compilación. Bug atrapado antes de simular.</p>
+      </div>
+    </section>
+
+    <!-- ===== 04 ===== -->
+    <section id="structs">
+      <div class="section-marker">
+        <span class="section-num">§ 04</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Composición</span>
+      </div>
+      <h2><em>Structs</em> packed</h2>
+      <p>Un <code class="inline-code">struct packed</code> es como un struct de C, pero con la garantía de que los campos están <strong>contiguos en bits</strong> (sin padding). El sintetizador lo trata como un único vector de N bits.</p>
+
+      <h3>El problema: 22 señales para mover datos</h3>
+      <p>Un buffer de pipeline tradicional recibe 22 señales separadas. Cada señal aparece en seis lugares: input port, output port, declaración interna, asignación de reset, asignación normal, y <code class="inline-code">assign</code> de salida. Total: <strong>132 líneas</strong> para mover 22 valores entre dos etapas.</p>
+
+      <h3>La solución: agruparlos en un struct</h3>
+<pre data-lang="sv"><span class="tok-k">typedef</span> <span class="tok-k">struct</span> <span class="tok-k">packed</span> {
+    <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] PC_inc;
+    <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] A;
+    <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] B;
+    <span class="tok-t">alu_op_t</span>     ALUOp;
+    <span class="tok-t">branch_t</span>     branch;
+    <span class="tok-c">// ... 18 campos más</span>
+} <span class="tok-t">id_ex_t</span>;</pre>
+
+      <p>Ahora el buffer entero se reduce a:</p>
+
+<pre data-lang="sv"><span class="tok-k">module</span> <span class="tok-f">id_ex_buffer</span> (
+    <span class="tok-k">input</span>  <span class="tok-k">logic</span>   i_clk, i_reset, i_enable,
+    <span class="tok-k">input</span>  <span class="tok-t">id_ex_t</span> i_data,
+    <span class="tok-k">output</span> <span class="tok-t">id_ex_t</span> o_data
+);
+    <span class="tok-t">id_ex_t</span> buf_reg;
+
+    <span class="tok-k">always_ff</span> @(<span class="tok-k">posedge</span> i_clk) <span class="tok-k">begin</span>
+        <span class="tok-k">if</span> (i_reset)       buf_reg &lt;= <span class="tok-n">'0</span>;
+        <span class="tok-k">else if</span> (i_enable) buf_reg &lt;= i_data;
+    <span class="tok-k">end</span>
+
+    <span class="tok-k">assign</span> o_data = buf_reg;
+<span class="tok-k">endmodule</span></pre>
+
+      <div class="reduction-grid">
+        <div class="reduction-card">
+          <div class="reduction-pct"><span class="sign">−</span>91<span style="font-size:24px;">%</span></div>
+          <div class="reduction-label">De 159 a 14 líneas</div>
+          <div class="reduction-bar"><div class="reduction-fill" style="width:9%"></div></div>
+        </div>
+        <div class="reduction-card">
+          <div class="reduction-pct">1</div>
+          <div class="reduction-label">Cambio para añadir un campo</div>
+          <div class="reduction-bar"><div class="reduction-fill" style="width:20%"></div></div>
+        </div>
+        <div class="reduction-card">
+          <div class="reduction-pct">∅</div>
+          <div class="reduction-label">Padding entre campos</div>
+          <div class="reduction-bar"><div class="reduction-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <p>Acceso a campos como en C:</p>
+<pre data-lang="sv"><span class="tok-t">id_ex_t</span> my_buf;
+my_buf.PC_inc      = <span class="tok-n">32'h1000</span>;
+my_buf.ALUOp       = ALU_OP_RTYPE;
+<span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] op_a  = my_buf.A;</pre>
+
+      <div class="callout callout-tip">
+        <div class="callout-label">✓ Regla</div>
+        <p>Para RTL sintetizable, usá siempre <code class="inline-code">struct packed</code>. La versión <em>unpacked</em> es solo para simulación.</p>
+      </div>
+    </section>
+
+    <!-- ===== 05 ===== -->
+    <section id="enums">
+      <div class="section-marker">
+        <span class="section-num">§ 05</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Tipado fuerte</span>
+      </div>
+      <h2><em>Enums</em> tipados</h2>
+
+      <h3>El problema en Verilog</h3>
+      <p>En Verilog se definen los estados de FSM como <code class="inline-code">localparam</code>:</p>
+
+<pre data-lang="verilog"><span class="tok-k">localparam</span> [<span class="tok-n">1</span>:<span class="tok-n">0</span>] RECEIVE_BYTE    = <span class="tok-n">2'b00</span>;
+<span class="tok-k">localparam</span> [<span class="tok-n">1</span>:<span class="tok-n">0</span>] SEND_INFO       = <span class="tok-n">2'b01</span>;
+
+<span class="tok-k">localparam</span> [<span class="tok-n">1</span>:<span class="tok-n">0</span>] IDLE                = <span class="tok-n">2'b00</span>;  <span class="tok-c">// ← mismo valor que RECEIVE_BYTE</span>
+<span class="tok-k">localparam</span> [<span class="tok-n">1</span>:<span class="tok-n">0</span>] RECEIVE_INSTRUCTION = <span class="tok-n">2'b01</span>;  <span class="tok-c">// ← mismo valor que SEND_INFO</span></pre>
+
+      <p>Si por accidente usás <code class="inline-code">IDLE</code> en lugar de <code class="inline-code">RECEIVE_BYTE</code>, el código <strong>compila y funciona aparentemente</strong>, pero la lógica está mal.</p>
+
+      <h3>La solución</h3>
+<pre data-lang="sv"><span class="tok-k">typedef</span> <span class="tok-k">enum</span> <span class="tok-k">logic</span> [<span class="tok-n">1</span>:<span class="tok-n">0</span>] {
+    ST_RECEIVE_BYTE    = <span class="tok-n">2'b00</span>,
+    ST_SEND_INFO       = <span class="tok-n">2'b01</span>,
+    ST_RECEIVE_COMMAND = <span class="tok-n">2'b10</span>
+} <span class="tok-t">global_state_t</span>;
+
+<span class="tok-k">typedef</span> <span class="tok-k">enum</span> <span class="tok-k">logic</span> [<span class="tok-n">1</span>:<span class="tok-n">0</span>] {
+    ST_IDLE                = <span class="tok-n">2'b00</span>,
+    ST_RECEIVE_INSTRUCTION = <span class="tok-n">2'b01</span>,
+    ST_WRITE_MEM           = <span class="tok-n">2'b10</span>
+} <span class="tok-t">recv_state_t</span>;
+
+<span class="tok-t">global_state_t</span> state_global;
+<span class="tok-t">recv_state_t</span>   state_recv;
+
+state_global = ST_IDLE;  <span class="tok-bad"><span class="tok-c">// ERROR de compilación: tipo incompatible</span></span></pre>
+
+      <p>El compilador <strong>rechaza</strong> mezclar enums de tipos distintos, aun cuando los valores coincidan numéricamente.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Aspecto</th><th>C</th><th>SystemVerilog</th></tr></thead>
+          <tbody>
+            <tr><td>Tipado fuerte</td><td>No (los enums son <code>int</code>)</td><td>Sí (incompatibles entre sí)</td></tr>
+            <tr><td>Ancho explícito</td><td>No</td><td>Sí (<code>enum logic [N:0]</code>)</td></tr>
+            <tr><td>Debug en simulación</td><td>Numérico</td><td>Muestra el nombre simbólico</td></tr>
+            <tr><td>Asignación numérica</td><td>Permitida</td><td>Requiere <code>cast</code> explícito</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-tip">
+        <div class="callout-label">✓ Bonus</div>
+        <p>En el waveform viewer (Vivado, GTKWave), las señales tipo <code class="inline-code">enum</code> muestran el <strong>nombre del estado</strong> en lugar de un valor binario. Reducís errores de lectura.</p>
+      </div>
+    </section>
+
+    <!-- ===== 06 ===== -->
+    <section id="packages">
+      <div class="section-marker">
+        <span class="section-num">§ 06</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Modularidad</span>
+      </div>
+      <h2><em>Packages</em>: el equivalente a headers de C</h2>
+
+      <p>Un <code class="inline-code">package</code> es una unidad compilable separada que puede contener <code class="inline-code">typedef</code> (incluyendo enums y structs), <code class="inline-code">localparam</code> y <code class="inline-code">parameter</code>, <code class="inline-code">function</code> y <code class="inline-code">task</code>.</p>
+
+<pre data-lang="sv"><span class="tok-c">// mips_pkg.sv</span>
+<span class="tok-k">package</span> <span class="tok-f">mips_pkg</span>;
+    <span class="tok-k">localparam</span> <span class="tok-k">int</span> NB_REG = <span class="tok-n">5</span>;
+
+    <span class="tok-k">typedef</span> <span class="tok-k">enum</span> <span class="tok-k">logic</span> [<span class="tok-n">5</span>:<span class="tok-n">0</span>] {
+        OP_R_TYPE = <span class="tok-n">6'b000000</span>,
+        OP_LW     = <span class="tok-n">6'b100011</span>
+    } <span class="tok-t">opcode_t</span>;
+
+    <span class="tok-k">typedef</span> <span class="tok-k">struct</span> <span class="tok-k">packed</span> {
+        <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] A, B;
+        <span class="tok-t">opcode_t</span>     opcode;
+    } <span class="tok-t">id_ex_t</span>;
+<span class="tok-k">endpackage</span> : <span class="tok-f">mips_pkg</span></pre>
+
+      <p>Cada módulo importa solo lo que necesita:</p>
+
+<pre data-lang="sv"><span class="tok-c">// Opción 1: importar todo</span>
+<span class="tok-k">import</span> mips_pkg::*;
+
+<span class="tok-k">module</span> <span class="tok-f">control_unit</span> (
+    <span class="tok-k">input</span> <span class="tok-t">opcode_t</span> i_opcode,
+    <span class="tok-k">output</span> ...
+);
+<span class="tok-k">endmodule</span>
+
+<span class="tok-c">// Opción 2: importar específico (recomendado)</span>
+<span class="tok-k">module</span> <span class="tok-f">control_unit</span>
+    <span class="tok-k">import</span> mips_pkg::opcode_t;
+(
+    <span class="tok-k">input</span> <span class="tok-t">opcode_t</span> i_opcode
+);
+<span class="tok-k">endmodule</span></pre>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>En C</th><th>En SystemVerilog</th></tr></thead>
+          <tbody>
+            <tr><td><code>header.h</code></td><td><code>package nombre; ... endpackage</code></td></tr>
+            <tr><td><code>#include "header.h"</code></td><td><code>import nombre::*;</code></td></tr>
+            <tr><td>Múltiples definiciones del mismo símbolo</td><td>Cada package es único; conflictos detectados</td></tr>
+            <tr><td>Header guards manuales</td><td>No hace falta — los packages se importan, no se incluyen</td></tr>
+            <tr><td>Macros (<code>#define</code>) sin tipos</td><td><code>localparam</code> con tipo</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-warn">
+        <div class="callout-label">⚠ Cuidado</div>
+        <p>El package debe compilarse <strong>antes</strong> que cualquier módulo que lo importe. En Vivado se maneja automáticamente; en <code class="inline-code">iverilog</code> o <code class="inline-code">verilator</code>, listá los archivos en orden de dependencia.</p>
+      </div>
+    </section>
+
+    <!-- ===== 07 ===== -->
+    <section id="interfaces">
+      <div class="section-marker">
+        <span class="section-num">§ 07</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Abstracción</span>
+      </div>
+      <h2><em>Interfaces</em> y modports</h2>
+
+      <p>Las <strong>interfaces</strong> son una construcción nueva sin equivalente directo en C. Permiten agrupar señales relacionadas y los puertos por los que pasan entre módulos.</p>
+
+      <div class="compare">
+        <div class="compare-card before">
+          <div class="compare-head"><div class="compare-dot"></div>Sin interface</div>
+<pre data-lang="sv"><span class="tok-k">module</span> <span class="tok-f">producer</span> (
+    <span class="tok-k">output</span> <span class="tok-k">logic</span>        valid,
+    <span class="tok-k">output</span> <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] data,
+    <span class="tok-k">input</span>  <span class="tok-k">logic</span>        ready
+);
+<span class="tok-k">endmodule</span>
+
+<span class="tok-k">module</span> <span class="tok-f">consumer</span> (
+    <span class="tok-k">input</span>  <span class="tok-k">logic</span>        valid,
+    <span class="tok-k">input</span>  <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] data,
+    <span class="tok-k">output</span> <span class="tok-k">logic</span>        ready
+);
+<span class="tok-k">endmodule</span>
+
+<span class="tok-c">// Top: tres wires por conexión</span>
+<span class="tok-k">module</span> <span class="tok-f">top</span>;
+    <span class="tok-k">logic</span> v;
+    <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] d;
+    <span class="tok-k">logic</span> r;
+    producer p (.valid(v),.data(d),.ready(r));
+    consumer c (.valid(v),.data(d),.ready(r));
+<span class="tok-k">endmodule</span></pre>
+        </div>
+        <div class="compare-card after">
+          <div class="compare-head"><div class="compare-dot"></div>Con interface</div>
+<pre data-lang="sv"><span class="tok-k">interface</span> <span class="tok-f">valid_ready_if</span>;
+    <span class="tok-k">logic</span>        valid;
+    <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] data;
+    <span class="tok-k">logic</span>        ready;
+
+    <span class="tok-k">modport</span> producer (
+        <span class="tok-k">output</span> valid, <span class="tok-k">output</span> data,
+        <span class="tok-k">input</span>  ready);
+    <span class="tok-k">modport</span> consumer (
+        <span class="tok-k">input</span>  valid, <span class="tok-k">input</span>  data,
+        <span class="tok-k">output</span> ready);
+<span class="tok-k">endinterface</span>
+
+<span class="tok-k">module</span> <span class="tok-f">producer</span> (valid_ready_if.producer ifc);
+<span class="tok-k">endmodule</span>
+
+<span class="tok-k">module</span> <span class="tok-f">top</span>;
+    valid_ready_if vr_if();
+    producer p (vr_if.producer);
+    consumer c (vr_if.consumer);
+<span class="tok-k">endmodule</span></pre>
+        </div>
+      </div>
+
+      <h4>Cuándo usar interfaces</h4>
+      <ul>
+        <li>✓ Buses con muchas señales (AXI, Wishbone, AHB).</li>
+        <li>✓ Conexiones que se replican en muchos lugares.</li>
+        <li>✗ Conexiones simples entre dos módulos — un struct es suficiente.</li>
+        <li>✗ Si tu equipo no domina la sintaxis de modport.</li>
+      </ul>
+    </section>
+
+    <!-- ===== 08 ===== -->
+    <section id="funciones">
+      <div class="section-marker">
+        <span class="section-num">§ 08</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Encapsulación</span>
+      </div>
+      <h2>Funciones y <em>tasks</em></h2>
+
+      <p>Igual que en C, podés encapsular lógica en funciones:</p>
+
+<pre data-lang="sv"><span class="tok-k">function</span> <span class="tok-k">automatic</span> <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] <span class="tok-f">add_signed</span>(
+    <span class="tok-k">input</span> <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] a,
+    <span class="tok-k">input</span> <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] b
+);
+    <span class="tok-k">return</span> $signed(a) + $signed(b);
+<span class="tok-k">endfunction</span>
+
+<span class="tok-c">// Uso:</span>
+<span class="tok-k">assign</span> result = add_signed(op_a, op_b);</pre>
+
+      <h4>Reglas para funciones sintetizables</h4>
+      <ul>
+        <li>Solo lógica combinacional — sin <code class="inline-code">always_ff</code> adentro.</li>
+        <li>Sin delays (<code class="inline-code">#5</code>).</li>
+        <li>Sin tasks adentro.</li>
+        <li><code class="inline-code">automatic</code> permite recursión y reentrancia — ponelo siempre.</li>
+      </ul>
+
+      <h3>Caso de uso: ALU como función en package</h3>
+<pre data-lang="sv"><span class="tok-c">// En mips_pkg.sv</span>
+<span class="tok-k">function</span> <span class="tok-k">automatic</span> <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] <span class="tok-f">alu_compute</span>(
+    <span class="tok-k">input</span> <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] a, b,
+    <span class="tok-k">input</span> <span class="tok-k">logic</span> [<span class="tok-n">4</span>:<span class="tok-n">0</span>]  shamt,
+    <span class="tok-k">input</span> <span class="tok-t">funct_t</span>      funct
+);
+    <span class="tok-k">case</span> (funct)
+        FUNCT_ADD:  <span class="tok-k">return</span> $signed(a) + $signed(b);
+        FUNCT_ADDU: <span class="tok-k">return</span> a + b;
+        FUNCT_SUBU: <span class="tok-k">return</span> a - b;
+        FUNCT_AND:  <span class="tok-k">return</span> a & b;
+        FUNCT_OR:   <span class="tok-k">return</span> a | b;
+        <span class="tok-k">default</span>:    <span class="tok-k">return</span> <span class="tok-n">'0</span>;
+    <span class="tok-k">endcase</span>
+<span class="tok-k">endfunction</span></pre>
+
+      <p>Cualquier módulo que importe el package puede llamar a <code class="inline-code">alu_compute(...)</code>.</p>
+    </section>
+
+    <!-- ===== 09 ===== -->
+    <section id="operadores">
+      <div class="section-marker">
+        <span class="section-num">§ 09</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Sintaxis</span>
+      </div>
+      <h2>Operadores y construcciones <em>nuevas</em></h2>
+
+      <h3>Operador <span class="inline-code">inside</span></h3>
+      <p>Reemplaza largas cadenas de OR:</p>
+
+      <div class="compare">
+        <div class="compare-card before">
+          <div class="compare-head"><div class="compare-dot"></div>Verilog</div>
+<pre data-lang="verilog"><span class="tok-k">if</span> (opcode == LW || opcode == LH ||
+    opcode == LB || opcode == LWU ||
+    opcode == LHU || opcode == LBU)
+    ...</pre>
+        </div>
+        <div class="compare-card after">
+          <div class="compare-head"><div class="compare-dot"></div>SystemVerilog</div>
+<pre data-lang="sv"><span class="tok-k">if</span> (opcode <span class="tok-k">inside</span> {OP_LW, OP_LH,
+                  OP_LB, OP_LWU,
+                  OP_LHU, OP_LBU})
+    ...</pre>
+        </div>
+      </div>
+
+      <h3>Literales <span class="inline-code">'0</span>, <span class="inline-code">'1</span>, <span class="inline-code">'x</span></h3>
+      <p>Asignaciones de "todos los bits" sin importar el ancho:</p>
+
+<pre data-lang="sv"><span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] reg_a;
+<span class="tok-k">logic</span> [<span class="tok-n">7</span>:<span class="tok-n">0</span>]  reg_b;
+
+reg_a &lt;= <span class="tok-n">'0</span>;   <span class="tok-c">// 32 ceros</span>
+reg_b &lt;= <span class="tok-n">'0</span>;   <span class="tok-c">// 8 ceros — el ancho se resuelve automáticamente</span>
+reg_a &lt;= <span class="tok-n">'1</span>;   <span class="tok-c">// 32 unos</span>
+reg_a &lt;= <span class="tok-n">'x</span>;   <span class="tok-c">// 32 X (debug)</span></pre>
+
+      <h3>Operadores lógicos vs bitwise</h3>
+      <p>SystemVerilog es más estricto: usá <code class="inline-code">&&</code>, <code class="inline-code">||</code>, <code class="inline-code">!</code> para expresiones lógicas (resultado 1 bit) y <code class="inline-code">&</code>, <code class="inline-code">|</code>, <code class="inline-code">~</code> para operaciones bitwise sobre vectores.</p>
+
+      <h3>Streaming operators</h3>
+      <p>Reordenar bits de un vector — útil para serialización en UART:</p>
+<pre data-lang="sv"><span class="tok-k">logic</span> [<span class="tok-n">7</span>:<span class="tok-n">0</span>] x = <span class="tok-n">8'b10110010</span>;
+<span class="tok-k">logic</span> [<span class="tok-n">7</span>:<span class="tok-n">0</span>] reversed = {&lt;&lt;{x}};   <span class="tok-c">// 8'b01001101</span></pre>
+    </section>
+
+    <!-- ===== 10 ===== -->
+    <section id="case">
+      <div class="section-marker">
+        <span class="section-num">§ 10</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Control de flujo</span>
+      </div>
+      <h2>Case: <em>unique</em> y <em>priority</em></h2>
+
+      <p>En Verilog, un <code class="inline-code">case</code> no avisa si faltan casos o hay solapamientos. SystemVerilog agrega dos modificadores que comunican intención y permiten verificación.</p>
+
+      <h3><span class="inline-code">unique case</span></h3>
+      <p>Le dice al sintetizador y al simulador que los casos son <strong>mutuamente excluyentes</strong> y que al menos uno matchea (o se requiere default):</p>
+
+<pre data-lang="sv"><span class="tok-k">unique</span> <span class="tok-k">case</span> (opcode)
+    OP_LW: ...;
+    OP_LH: ...;
+    OP_SW: ...;
+    <span class="tok-k">default</span>: ...;
+<span class="tok-k">endcase</span></pre>
+
+      <ul>
+        <li>En simulación: si dos casos matchean, error en runtime.</li>
+        <li>En síntesis: el sintetizador puede optimizar más agresivamente.</li>
+      </ul>
+
+      <h3><span class="inline-code">priority case</span></h3>
+      <p>Especifica que los casos se evalúan <strong>en orden</strong> y solo el primer match cuenta. Equivale a <code class="inline-code">if/else if/else</code>:</p>
+
+<pre data-lang="sv"><span class="tok-k">priority</span> <span class="tok-k">case</span> (<span class="tok-n">1'b1</span>)
+    irq_high:   handler = HIGH;
+    irq_med:    handler = MED;
+    irq_low:    handler = LOW;
+    <span class="tok-k">default</span>:    handler = NONE;
+<span class="tok-k">endcase</span></pre>
+
+      <h3>Aplicación: control unit con defaults</h3>
+
+      <div class="compare">
+        <div class="compare-card before">
+          <div class="compare-head"><div class="compare-dot"></div>Verilog — 416 líneas</div>
+<pre data-lang="verilog">SW : <span class="tok-k">begin</span>
+    o_regDst = <span class="tok-n">1'b0</span>;
+    o_ALUOp = <span class="tok-n">2'b00</span>;
+    o_ALUSrc = <span class="tok-n">1'b1</span>;
+    o_branch = <span class="tok-n">2'b00</span>;
+    o_memRead = <span class="tok-n">1'b0</span>;
+    o_memWrite = <span class="tok-n">1'b1</span>;
+    <span class="tok-c">// ... 13 señales por caso</span>
+<span class="tok-k">end</span></pre>
+        </div>
+        <div class="compare-card after">
+          <div class="compare-head"><div class="compare-dot"></div>SV — ~160 líneas</div>
+<pre data-lang="sv"><span class="tok-k">always_comb</span> <span class="tok-k">begin</span>
+    <span class="tok-c">// defaults arriba</span>
+    o_regDst = <span class="tok-n">1'b0</span>;
+    o_ALUOp = ALU_OP_LOADSTORE;
+    <span class="tok-c">// ... resto de defaults</span>
+
+    <span class="tok-k">unique</span> <span class="tok-k">case</span> (i_opcode)
+        OP_SW: <span class="tok-k">begin</span>
+            o_ALUSrc = <span class="tok-n">1'b1</span>;
+            o_memWrite = <span class="tok-n">1'b1</span>;
+        <span class="tok-k">end</span>
+        <span class="tok-c">// solo lo que difiere</span>
+    <span class="tok-k">endcase</span>
+<span class="tok-k">end</span></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 11 ===== -->
+    <section id="generate">
+      <div class="section-marker">
+        <span class="section-num">§ 11</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Replicación</span>
+      </div>
+      <h2><em>Generate</em>: replicación de hardware</h2>
+      <p><code class="inline-code">generate</code> permite replicar o parametrizar hardware en tiempo de compilación.</p>
+
+<pre data-lang="sv"><span class="tok-k">genvar</span> i;
+<span class="tok-k">generate</span>
+    <span class="tok-k">for</span> (i = <span class="tok-n">0</span>; i &lt; N; i++) <span class="tok-k">begin</span> : gen_adders
+        adder u_add (
+            .a (a_vec[i]),
+            .b (b_vec[i]),
+            .y (y_vec[i])
+        );
+    <span class="tok-k">end</span>
+<span class="tok-k">endgenerate</span></pre>
+
+      <p><code class="inline-code">gen_adders</code> es un nombre jerárquico para acceder a las instancias generadas: <code class="inline-code">top.gen_adders[3].u_add.y</code>.</p>
+
+      <h3>Caso de uso: inicialización de register file</h3>
+<pre data-lang="sv"><span class="tok-c">// En mips_pkg.sv</span>
+<span class="tok-k">localparam</span> <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] REG_INIT [N_REGS] = <span class="tok-n">'{</span>
+    <span class="tok-n">32'd0</span>, <span class="tok-n">32'd15</span>, <span class="tok-n">32'd40</span>, <span class="tok-n">32'd2</span>, <span class="tok-n">32'd1</span>,
+    <span class="tok-k">default</span>: <span class="tok-n">32'd0</span>
+};
+
+<span class="tok-c">// En register_file.sv</span>
+<span class="tok-k">always_ff</span> @(<span class="tok-k">posedge</span> clk) <span class="tok-k">begin</span>
+    <span class="tok-k">if</span> (reset) <span class="tok-k">begin</span>
+        <span class="tok-k">for</span> (<span class="tok-k">int</span> i = <span class="tok-n">0</span>; i &lt; N_REGS; i++)
+            r_regs[i] &lt;= REG_INIT[i];
+    <span class="tok-k">end</span>
+<span class="tok-k">end</span></pre>
+    </section>
+
+    <!-- ===== 12 ===== -->
+    <section id="parametros">
+      <div class="section-marker">
+        <span class="section-num">§ 12</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Genericidad</span>
+      </div>
+      <h2>Parámetros y constantes</h2>
+
+      <p>Igual que Verilog-2001, los parámetros funcionan así:</p>
+
+<pre data-lang="sv"><span class="tok-k">module</span> <span class="tok-f">fifo</span> #(
+    <span class="tok-k">parameter</span> <span class="tok-k">int</span> DEPTH = <span class="tok-n">16</span>,
+    <span class="tok-k">parameter</span> <span class="tok-k">int</span> WIDTH = <span class="tok-n">32</span>
+) (
+    ...
+);
+    <span class="tok-k">logic</span> [WIDTH-<span class="tok-n">1</span>:<span class="tok-n">0</span>] mem [DEPTH];
+<span class="tok-k">endmodule</span>
+
+<span class="tok-c">// Instanciación:</span>
+fifo #(.DEPTH(<span class="tok-n">64</span>), .WIDTH(<span class="tok-n">8</span>)) u_fifo (...);</pre>
+
+      <h3>Type parameters — la joya de SV</h3>
+      <p>Podés parametrizar <strong>el tipo</strong> además del valor:</p>
+
+<pre data-lang="sv"><span class="tok-k">module</span> <span class="tok-f">flop</span> #(
+    <span class="tok-k">parameter</span> <span class="tok-k">type</span> T = <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>]
+) (
+    <span class="tok-k">input</span>  <span class="tok-k">logic</span> clk,
+    <span class="tok-k">input</span>  T     d,
+    <span class="tok-k">output</span> T     q
+);
+    <span class="tok-k">always_ff</span> @(<span class="tok-k">posedge</span> clk) q &lt;= d;
+<span class="tok-k">endmodule</span>
+
+<span class="tok-c">// Instanciación con tipo:</span>
+flop #(.T(id_ex_t)) u_id_ex_buf (.clk(clk), .d(in_data), .q(out_data));</pre>
+
+      <div class="callout callout-key">
+        <div class="callout-label">★ Idea clave</div>
+        <p>Esto te permite escribir <strong>un único módulo de buffer reusable</strong> para los cuatro buffers del pipeline. De 367 líneas en 4 archivos a ~15 líneas en 1.</p>
+      </div>
+    </section>
+
+    <!-- ===== 13 ===== -->
+    <section id="assertions">
+      <div class="section-marker">
+        <span class="section-num">§ 13</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Verificación</span>
+      </div>
+      <h2><em>Assertions</em>: verificación embebida</h2>
+      <p>Las assertions son afirmaciones sobre el comportamiento del diseño que el simulador verifica en cada ciclo. Son <strong>ignoradas por el sintetizador</strong>, así que no agregan hardware.</p>
+
+      <h3>Immediate (inline)</h3>
+<pre data-lang="sv"><span class="tok-k">always_ff</span> @(<span class="tok-k">posedge</span> clk) <span class="tok-k">begin</span>
+    <span class="tok-k">if</span> (regWrite && dest_reg == <span class="tok-n">5'd0</span>)
+        <span class="tok-k">assert</span> (returnPC == RET_NONE)
+            <span class="tok-k">else</span> $error(<span class="tok-s">"Escritura sobre r0 sin link"</span>);
+<span class="tok-k">end</span></pre>
+
+      <h3>Concurrent (más potentes)</h3>
+<pre data-lang="sv"><span class="tok-k">property</span> no_write_r0;
+    @(<span class="tok-k">posedge</span> clk) <span class="tok-k">disable iff</span> (reset)
+    !(regWrite && dest_reg == <span class="tok-n">5'd0</span> && returnPC == RET_NONE);
+<span class="tok-k">endproperty</span>
+
+a_no_write_r0: <span class="tok-k">assert property</span> (no_write_r0)
+    <span class="tok-k">else</span> $error(<span class="tok-s">"r0 escrito"</span>);</pre>
+
+      <h3>Operadores temporales</h3>
+<pre data-lang="sv"><span class="tok-c">// |->: implicación en el mismo ciclo</span>
+<span class="tok-k">property</span> req_grant;
+    @(<span class="tok-k">posedge</span> clk) req |-&gt; grant;
+<span class="tok-k">endproperty</span>
+
+<span class="tok-c">// |=>: implicación en el siguiente ciclo</span>
+<span class="tok-k">property</span> stall_then_bubble;
+    @(<span class="tok-k">posedge</span> clk) stall |=&gt; !regWrite_in_EX;
+<span class="tok-k">endproperty</span>
+
+<span class="tok-c">// ##N: después de N ciclos</span>
+<span class="tok-k">property</span> completion;
+    @(<span class="tok-k">posedge</span> clk) start |-&gt; ##<span class="tok-n">5</span> done;
+<span class="tok-k">endproperty</span></pre>
+
+      <div class="callout callout-tip">
+        <div class="callout-label">✓ Estrategia</div>
+        <p>Cada vez que arregles un bug, agregá una assertion que lo detectaría. Con el tiempo, el set de assertions se vuelve una red de seguridad muy efectiva.</p>
+      </div>
+    </section>
+
+    <!-- ===== 14 ===== -->
+    <section id="estrategia">
+      <div class="section-marker">
+        <span class="section-num">§ 14</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Roadmap</span>
+      </div>
+      <h2>Estrategia de migración <em>paso a paso</em></h2>
+      <p>No migres todo de golpe. SystemVerilog es superset de Verilog, así que podés hacerlo gradual.</p>
+
+      <div class="roadmap">
+        <div class="phase">
+          <div class="phase-dot"></div>
+          <div class="phase-card">
+            <div class="phase-head">
+              <div class="phase-title">Fase 1 — Cambios mecánicos</div>
+              <div class="phase-meta"><span class="phase-time">1 día</span><span class="phase-risk">Riesgo: bajo</span></div>
+            </div>
+            <p class="phase-desc">Renombrá <code class="inline-code">.v</code> a <code class="inline-code">.sv</code>. Reemplazá <code class="inline-code">reg</code>/<code class="inline-code">wire</code> por <code class="inline-code">logic</code>. Cambiá <code class="inline-code">always @(*)</code> por <code class="inline-code">always_comb</code> y <code class="inline-code">always @(posedge clk)</code> por <code class="inline-code">always_ff</code>. Compilá: el compilador reporta los bugs latentes (latches inferidos, mezcla bloqueante/no-bloqueante).</p>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="phase-dot"></div>
+          <div class="phase-card">
+            <div class="phase-head">
+              <div class="phase-title">Fase 2 — Centralización de tipos</div>
+              <div class="phase-meta"><span class="phase-time">1-2 días</span><span class="phase-risk">Riesgo: bajo</span></div>
+            </div>
+            <p class="phase-desc">Creá <code class="inline-code">mips_pkg.sv</code> con todos los opcodes, funct codes y constantes. Reemplazá los <code class="inline-code">localparam</code> dispersos por imports del package. Convertí los <code class="inline-code">localparam</code> de FSMs en <code class="inline-code">enum</code> tipados.</p>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="phase-dot"></div>
+          <div class="phase-card">
+            <div class="phase-head">
+              <div class="phase-title">Fase 3 — Structs en buffers de pipeline</div>
+              <div class="phase-meta"><span class="phase-time">2-3 días</span><span class="phase-risk">Riesgo: medio</span></div>
+            </div>
+            <p class="phase-desc">Definí un struct por cada buffer (<code class="inline-code">if_id_t</code>, <code class="inline-code">id_ex_t</code>, etc.) en el package. Reescribí los cuatro buffers usando structs (cada uno baja de ~150 a ~15 líneas). Modificá las etapas adyacentes para producir/consumir el struct entero. Tener buena suite de tests es crítico.</p>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="phase-dot"></div>
+          <div class="phase-card">
+            <div class="phase-head">
+              <div class="phase-title">Fase 4 — Refactor de control unit</div>
+              <div class="phase-meta"><span class="phase-time">1 día</span><span class="phase-risk">Riesgo: bajo</span></div>
+            </div>
+            <p class="phase-desc">Convertí el <code class="inline-code">case</code> gigante en <code class="inline-code">always_comb</code> + defaults + <code class="inline-code">unique case</code>. Verificá con tests que las salidas son idénticas.</p>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="phase-dot"></div>
+          <div class="phase-card">
+            <div class="phase-head">
+              <div class="phase-title">Fase 5 — Refactor de FSM debug</div>
+              <div class="phase-meta"><span class="phase-time">1-2 días</span><span class="phase-risk">Riesgo: bajo</span></div>
+            </div>
+            <p class="phase-desc">Convertí <code class="inline-code">localparam</code> de estados en <code class="inline-code">enum</code>. Convertí el <code class="inline-code">always @(posedge clk)</code> monolítico en <code class="inline-code">always_ff</code> + <code class="inline-code">always_comb</code> separados (current/next state).</p>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="phase-dot"></div>
+          <div class="phase-card">
+            <div class="phase-head">
+              <div class="phase-title">Fase 6 — Assertions</div>
+              <div class="phase-meta"><span class="phase-time">continuo</span><span class="phase-risk">Beneficio creciente</span></div>
+            </div>
+            <p class="phase-desc">Cada vez que arregles un bug, agregá una assertion que lo detectaría. La cobertura crece con el tiempo y se vuelve una red de seguridad efectiva.</p>
+          </div>
+        </div>
+
+        <div class="phase">
+          <div class="phase-dot"></div>
+          <div class="phase-card">
+            <div class="phase-head">
+              <div class="phase-title">Fase 7 — Interfaces (opcional)</div>
+              <div class="phase-meta"><span class="phase-time">1 semana</span><span class="phase-risk">Solo si hace falta</span></div>
+            </div>
+            <p class="phase-desc">Solo si tu pipeline crece y los structs ya no alcanzan. La curva de aprendizaje de <code class="inline-code">interface</code>/<code class="inline-code">modport</code> es la más alta de SV.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 15 ===== -->
+    <section id="practicas">
+      <div class="section-marker">
+        <span class="section-num">§ 15</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Estilo</span>
+      </div>
+      <h2>Buenas <em>prácticas</em></h2>
+
+      <h3>Convenciones de nomenclatura</h3>
+<pre data-lang="sv"><span class="tok-c">// Tipos: snake_case con sufijo _t</span>
+<span class="tok-k">typedef</span> <span class="tok-k">enum</span> { A, B } <span class="tok-t">state_t</span>;
+<span class="tok-k">typedef</span> <span class="tok-k">struct</span> <span class="tok-k">packed</span> { ... } <span class="tok-t">packet_t</span>;
+
+<span class="tok-c">// Constantes: UPPER_SNAKE</span>
+<span class="tok-k">localparam</span> <span class="tok-k">int</span> FIFO_DEPTH = <span class="tok-n">16</span>;
+<span class="tok-k">localparam</span> <span class="tok-k">logic</span> [<span class="tok-n">3</span>:<span class="tok-n">0</span>] CMD_READ = <span class="tok-n">4'h0</span>;
+
+<span class="tok-c">// Señales: snake_case</span>
+<span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>] data_in;
+
+<span class="tok-c">// Puertos: prefijo i_ / o_</span>
+<span class="tok-k">input</span>  <span class="tok-k">logic</span> i_clk;
+<span class="tok-k">output</span> <span class="tok-k">logic</span> o_done;
+
+<span class="tok-c">// Instancias: prefijo u_</span>
+adder u_main_adder (...);
+
+<span class="tok-c">// Generate: prefijo gen_</span>
+<span class="tok-k">for</span> (<span class="tok-k">genvar</span> i = <span class="tok-n">0</span>; ...) <span class="tok-k">begin</span> : gen_adders ... <span class="tok-k">end</span></pre>
+
+      <h3>FSMs: separar estado y lógica</h3>
+<pre data-lang="sv"><span class="tok-k">typedef</span> <span class="tok-k">enum</span> <span class="tok-k">logic</span> [<span class="tok-n">1</span>:<span class="tok-n">0</span>] { S_IDLE, S_RUN, S_DONE } <span class="tok-t">state_t</span>;
+<span class="tok-t">state_t</span> state, state_next;
+
+<span class="tok-c">// Solo flop del estado</span>
+<span class="tok-k">always_ff</span> @(<span class="tok-k">posedge</span> clk) <span class="tok-k">begin</span>
+    <span class="tok-k">if</span> (reset) state &lt;= S_IDLE;
+    <span class="tok-k">else</span>       state &lt;= state_next;
+<span class="tok-k">end</span>
+
+<span class="tok-c">// Lógica de transición</span>
+<span class="tok-k">always_comb</span> <span class="tok-k">begin</span>
+    state_next = state;     <span class="tok-c">// default: retener</span>
+    <span class="tok-k">unique</span> <span class="tok-k">case</span> (state)
+        S_IDLE:  <span class="tok-k">if</span> (start) state_next = S_RUN;
+        S_RUN:   <span class="tok-k">if</span> (done)  state_next = S_DONE;
+        S_DONE:               state_next = S_IDLE;
+    <span class="tok-k">endcase</span>
+<span class="tok-k">end</span>
+
+<span class="tok-c">// Outputs (Moore: dependen solo del estado)</span>
+<span class="tok-k">always_comb</span> <span class="tok-k">begin</span>
+    o_busy = (state == S_RUN);
+    o_done = (state == S_DONE);
+<span class="tok-k">end</span></pre>
+
+      <h3>Reutilización con type parameters</h3>
+      <p>Un único <code class="inline-code">pipeline_buffer</code> reusable para los 4 buffers:</p>
+
+<pre data-lang="sv"><span class="tok-k">module</span> <span class="tok-f">pipeline_buffer</span> #(
+    <span class="tok-k">parameter</span> <span class="tok-k">type</span> T = <span class="tok-k">logic</span> [<span class="tok-n">31</span>:<span class="tok-n">0</span>]
+) (
+    <span class="tok-k">input</span>  <span class="tok-k">logic</span> i_clk, i_reset, i_enable,
+    <span class="tok-k">input</span>  T     i_data,
+    <span class="tok-k">output</span> T     o_data
+);
+    T buf_reg;
+    <span class="tok-k">always_ff</span> @(<span class="tok-k">posedge</span> i_clk) <span class="tok-k">begin</span>
+        <span class="tok-k">if</span> (i_reset)       buf_reg &lt;= <span class="tok-n">'0</span>;
+        <span class="tok-k">else if</span> (i_enable) buf_reg &lt;= i_data;
+    <span class="tok-k">end</span>
+    <span class="tok-k">assign</span> o_data = buf_reg;
+<span class="tok-k">endmodule</span>
+
+<span class="tok-c">// Uso (un solo módulo para los 4 buffers):</span>
+pipeline_buffer #(.T(if_id_t))  u_if_id  (.*);
+pipeline_buffer #(.T(id_ex_t))  u_id_ex  (.*);
+pipeline_buffer #(.T(ex_mem_t)) u_ex_mem (.*);
+pipeline_buffer #(.T(mem_wb_t)) u_mem_wb (.*);</pre>
+
+      <div class="callout callout-tip">
+        <div class="callout-label">✓ Comentarios</div>
+        <p>Como en C: explicá el <strong>por qué</strong>, no el qué. <code class="inline-code">// suma a y b</code> es ruido. <code class="inline-code">// Suma signed para BEQ/BNE; ALUControl elige ADDU para loads</code> es señal.</p>
+      </div>
+    </section>
+
+    <!-- ===== 16 ===== -->
+    <section id="errores">
+      <div class="section-marker">
+        <span class="section-num">§ 16</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Anti-patrones</span>
+      </div>
+      <h2>Errores <em>comunes</em></h2>
+
+      <div class="errors">
+        <div class="error-item">
+          <div class="error-num">1</div>
+          <div class="error-title">Mezclar bloqueante y no-bloqueante</div>
+          <p class="error-desc">Dentro de <code class="inline-code">always_ff</code> usá siempre <code class="inline-code"><=</code>; dentro de <code class="inline-code">always_comb</code> usá siempre <code class="inline-code">=</code>. El compilador lo verifica.</p>
+        </div>
+        <div class="error-item">
+          <div class="error-num">2</div>
+          <div class="error-title">Olvidar default en case combinacional</div>
+          <p class="error-desc">Sin <code class="inline-code">default</code> y sin asignación previa, se infiere un latch. Solución: <strong>asignar defaults antes del case</strong>. <code class="inline-code">always_comb</code> te avisa.</p>
+        </div>
+        <div class="error-item">
+          <div class="error-num">3</div>
+          <div class="error-title">Asignación cruzada entre always_ff y always_comb</div>
+          <p class="error-desc">Una señal solo puede ser driveada por un bloque (o un solo <code class="inline-code">assign</code>). Si dos bloques asignan la misma señal, error.</p>
+        </div>
+        <div class="error-item">
+          <div class="error-num">4</div>
+          <div class="error-title">Anchos incompatibles</div>
+          <p class="error-desc">Verilog trunca silenciosamente. SV emite warning estricto. Usá <code class="inline-code">a = b[7:0]</code> o cast explícito <code class="inline-code">a = 8'(b)</code> para dejar la intención clara.</p>
+        </div>
+        <div class="error-item">
+          <div class="error-num">5</div>
+          <div class="error-title">Usar == con valores que pueden ser X</div>
+          <p class="error-desc">Si <code class="inline-code">valid = 1'bx</code>, la condición <code class="inline-code">valid == 1'b1</code> es indeterminada. Para constantes usá <code class="inline-code">===</code> que compara incluyendo X y Z. En RTL, <code class="inline-code">if (valid)</code> directamente.</p>
+        </div>
+        <div class="error-item">
+          <div class="error-num">6</div>
+          <div class="error-title">Estados de FSM con valores iguales</div>
+          <p class="error-desc">Si dos enums distintos tienen el mismo valor numérico, el compilador los rechaza al asignar uno a otro. Esto es <strong>bueno</strong>: te salva de mezclar FSMs.</p>
+        </div>
+        <div class="error-item">
+          <div class="error-num">7</div>
+          <div class="error-title">Inferir un latch cuando querías un cable</div>
+          <p class="error-desc"><code class="inline-code">if (enable) o = a;</code> sin <code class="inline-code">else</code> infiere latch. <code class="inline-code">always_comb</code> reporta error de compilación.</p>
+        </div>
+        <div class="error-item">
+          <div class="error-num">8</div>
+          <div class="error-title">Recargar parameter con tipo erróneo</div>
+          <p class="error-desc">Usá <code class="inline-code">localparam</code> para constantes derivadas dentro del módulo. <code class="inline-code">parameter</code> es para lo que se sobreescribe al instanciar.</p>
+        </div>
+        <div class="error-item">
+          <div class="error-num">9</div>
+          <div class="error-title">Confundir parameter type con parameter int</div>
+          <p class="error-desc"><code class="inline-code">flop #(.T(32))</code> da error: 32 no es un tipo. Lo correcto: <code class="inline-code">flop #(.T(logic [31:0]))</code>.</p>
+        </div>
+        <div class="error-item">
+          <div class="error-num">10</div>
+          <div class="error-title">Asumir que packages funcionan como #include</div>
+          <p class="error-desc">No se incluyen, se importan como namespaces. Cambiar el package recompila todos los archivos que lo importan. No hay protección contra ciclos: package A no puede importar B si B importa A.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 17 ===== -->
+    <section id="glosario">
+      <div class="section-marker">
+        <span class="section-num">§ 17</span>
+        <span class="section-rule"></span>
+        <span class="section-tag">Referencia</span>
+      </div>
+      <h2>Glosario</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Término</th><th>Significado</th></tr></thead>
+          <tbody>
+            <tr><td><strong>RTL</strong></td><td>Register Transfer Level. Descripción a nivel de transferencia entre registros (lo que sintetizás a hardware).</td></tr>
+            <tr><td><strong>FSM</strong></td><td>Finite State Machine. Máquina de estados finitos.</td></tr>
+            <tr><td><strong>Hazard</strong></td><td>Conflicto en el pipeline (data, control, structural).</td></tr>
+            <tr><td><strong>Forwarding</strong></td><td>Redirigir el resultado de una etapa avanzada a una etapa más temprana para resolver dependencias.</td></tr>
+            <tr><td><strong>Stall (bubble)</strong></td><td>Pausar el pipeline insertando un ciclo vacío.</td></tr>
+            <tr><td><strong>Synthesis</strong></td><td>Conversión de RTL a netlist (gates físicos).</td></tr>
+            <tr><td><strong>Latch</strong></td><td>Elemento de memoria transparente — no usar en RTL FPGA.</td></tr>
+            <tr><td><strong>Flip-flop</strong></td><td>Elemento de memoria que captura solo en el flanco de clock.</td></tr>
+            <tr><td><strong>Packed</strong></td><td>Bits contiguos en memoria, sintetizable como vector.</td></tr>
+            <tr><td><strong>Unpacked</strong></td><td>Array de elementos independientes, modela memorias.</td></tr>
+            <tr><td><strong>Modport</strong></td><td>"Vista" de un interface que define qué señales son input/output desde un módulo.</td></tr>
+            <tr><td><strong>Property</strong></td><td>Construcción para describir comportamiento esperado en assertions.</td></tr>
+            <tr><td><strong>Coverage</strong></td><td>Métricas que indican qué partes del diseño fueron ejercitadas en simulación.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Resumen ejecutivo</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Paso</th><th>Esfuerzo</th><th>Beneficio</th></tr></thead>
+          <tbody>
+            <tr><td>1. <code>reg/wire</code> → <code>logic</code></td><td>minutos</td><td>Claridad</td></tr>
+            <tr><td>2. <code>always</code> → <code>always_ff/comb</code></td><td>una tarde</td><td>Detección temprana de latches</td></tr>
+            <tr><td>3. Centralizar <code>localparam</code> en package</td><td>una tarde</td><td>Una fuente de verdad</td></tr>
+            <tr><td>4. Estados → <code>enum</code></td><td>una tarde</td><td>Tipado fuerte, debug claro</td></tr>
+            <tr><td>5. Buffers → <code>struct</code></td><td>2-3 días</td><td>−75% líneas</td></tr>
+            <tr><td>6. Control unit → <code>unique case</code></td><td>1 día</td><td>−60% líneas</td></tr>
+            <tr><td>7. Type parameters → buffer genérico</td><td>1 día</td><td>4 buffers → 1 módulo</td></tr>
+            <tr><td>8. Assertions</td><td>continuo</td><td>Red de seguridad creciente</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-key">
+        <div class="callout-label">★ Consejo final</div>
+        <p>Hacé los pasos 1-4 ya — todo en un día. Los pasos 5-8 escalan según cuánto vas a evolucionar el diseño. Si el procesador no va a crecer más, los pasos 1-4 ya te dan el <strong>70% del beneficio</strong>.</p>
+      </div>
+
+      <h3>Recursos para profundizar</h3>
+      <ul>
+        <li><strong>IEEE 1800-2017</strong> — el estándar oficial de SystemVerilog.</li>
+        <li><strong>"SystemVerilog for Design"</strong> (Sutherland, Davidmann, Flake) — el libro de referencia.</li>
+        <li><strong>"FPGA Prototyping by SystemVerilog Examples"</strong> (Pong P. Chu) — orientado a Xilinx.</li>
+        <li><strong>verilator.org</strong> — útil incluso si usás Vivado.</li>
+        <li><strong>doulos.com/knowhow/systemverilog/</strong> — tutoriales gratis online.</li>
+      </ul>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============================ FOOTER ============================ -->
+<footer>
+  <div class="footer-inner">
+    <div>
+      <div class="footer-brand">De Verilog <em>a</em><br>SystemVerilog.</div>
+      <div class="footer-tagline">Una guía didáctica para migrar diseños RTL de Verilog a SystemVerilog manteniendo la sintaxis, ganando expresividad y atrapando bugs antes de simular.</div>
+    </div>
+    <div class="footer-col">
+      <h5>Capítulos</h5>
+      <ul>
+        <li>Sistema de tipos</li>
+        <li>Bloques procedurales</li>
+        <li>Structs &amp; enums</li>
+        <li>Packages &amp; interfaces</li>
+        <li>Assertions</li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Referencias</h5>
+      <ul>
+        <li>IEEE 1800-2017</li>
+        <li>Sutherland Verilog/SV</li>
+        <li>Pong P. Chu</li>
+        <li>Verilator docs</li>
+        <li>Doulos tutorials</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>—— Guía didáctica · 17 secciones</span>
+    <span>SystemVerilog ⊃ Verilog</span>
+  </div>
+</footer>
+
+<script>
+  // ===== Theme toggle =====
+  const themeToggle = document.getElementById('themeToggle');
+  const root = document.documentElement;
+
+  // Detectar preferencia inicial: sistema operativo
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (prefersDark) {
+    root.setAttribute('data-theme', 'dark');
+  }
+
+  themeToggle.addEventListener('click', () => {
+    const current = root.getAttribute('data-theme');
+    if (current === 'dark') {
+      root.removeAttribute('data-theme');
+    } else {
+      root.setAttribute('data-theme', 'dark');
+    }
+  });
+
+  // ===== Sidebar navigation =====
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.sidebar a');
+  const topBar = document.querySelector('.top-bar');
+
+  function getOffset() {
+    return (topBar ? topBar.offsetHeight : 60) + 20;
+  }
+
+  // Click handler: scroll programático preciso
+  navLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      const targetId = link.getAttribute('href').slice(1);
+      const target = document.getElementById(targetId);
+      if (!target) return;
+
+      e.preventDefault();
+      const top = target.getBoundingClientRect().top + window.scrollY - getOffset();
+      window.scrollTo({ top, behavior: 'smooth' });
+
+      // Actualizar URL sin disparar otro scroll
+      history.pushState(null, '', '#' + targetId);
+
+      // Marcar como activo inmediatamente
+      navLinks.forEach(l => l.classList.remove('active'));
+      link.classList.add('active');
+    });
+  });
+
+  // Scroll spy
+  function updateActive() {
+    let current = '';
+    const offset = getOffset() + 40;
+    sections.forEach(sec => {
+      const top = sec.getBoundingClientRect().top;
+      if (top - offset <= 0) current = sec.id;
+    });
+    if (current) {
+      navLinks.forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+      });
+    }
+  }
+
+  window.addEventListener('scroll', updateActive, { passive: true });
+  window.addEventListener('load', updateActive);
+  updateActive();
+
+  // Si la página carga con un hash, ajustar la posición tras un tick
+  if (window.location.hash) {
+    setTimeout(() => {
+      const target = document.querySelector(window.location.hash);
+      if (target) {
+        const top = target.getBoundingClientRect().top + window.scrollY - getOffset();
+        window.scrollTo({ top, behavior: 'auto' });
+      }
+    }, 50);
+  }
+</script>
+
+</body>
+</html>

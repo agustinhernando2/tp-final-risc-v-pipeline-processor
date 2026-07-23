@@ -2,13 +2,13 @@
 
 A 5-stage pipelined RISC-V processor implemented in SystemVerilog, targeting the **Basys-3 FPGA** board. The design follows the classic Patterson & Hennessy pipeline: **IF → ID → EX → MEM → WB**, with full data-hazard handling (forwarding + load-use stall) and branch/jump control-hazard handling (assume-not-taken + flush, 2-cycle penalty). The datapath is **32-bit** wide (`DATA_WIDTH = 32`, RV32); the PC is kept 64-bit (`NB_PC = 64`). RISC-V instructions are 32-bit.
 
-**Status: complete and validated on the physical Basys-3.** UART program loading, continuous and step-by-step debug, and timing closure are all working on hardware. The SoC is clocked by an MMCM at **65 MHz** (the max reliable frequency for the 32-bit datapath; see the timing reports under `docs/reports/`).
+**Status: complete and validated on the physical Basys-3.** UART program loading, continuous and step-by-step debug, and timing closure are all working on hardware. The SoC is clocked by a Clock Wizard IP at **75 MHz** with full setup **and** hold closure (WNS +0.634 ns, WHS +0.074 ns; see the timing reports under `docs/reports/`).
 
 ---
 
 ## Architecture Overview
 
-The pipeline core (`RISCV`) is wrapped by `RiscvTop`, the synthesis top, which adds the UART, the `DebugUnit` FSM, and the MMCM clocking the whole SoC at 65 MHz. The UART interface (`i_rx` / `o_tx`) lets a host PC load programs and drive the processor. All five stages are wired end-to-end with forwarding, load-use stall detection, and branch/jump flushing. Branches and jumps are resolved at the EX/MEM boundary (start of MEM); on a taken branch/jump the `IF/ID` and `ID/EX` buffers are flushed (2-cycle penalty).
+The pipeline core (`RISCV`) is wrapped by `RiscvTop`, the synthesis top, which adds the UART, the `DebugUnit` FSM, and the Clock Wizard IP clocking the whole SoC at 75 MHz. The UART interface (`i_rx` / `o_tx`) lets a host PC load programs and drive the processor. All five stages are wired end-to-end with forwarding, load-use stall detection, and branch/jump flushing. Branches and jumps are resolved at the EX/MEM boundary (start of MEM); on a taken branch/jump the `IF/ID` and `ID/EX` buffers are flushed (2-cycle penalty).
 
 Programs are driven over UART by the host tooling in `tools/gui/` (assembler + debug GUI/CLI). Programs must end with the dedicated `HALT` instruction (custom-0 opcode `0x0000000B`); the loader zero-pads the rest of memory and zeros decode as NOPs.
 
@@ -31,7 +31,48 @@ The processor is built in staged increments. **All stages (0–11) are done and 
 | 8 | Branch & jump handling | ✅ Done |
 | 9 | UART & debug unit (program load, HALT) | ✅ Done |
 | 10 | Operating modes (continuous / step-by-step) | ✅ Done (DebugUnit FSM) |
-| 11 | Timing analysis & frequency optimization (MMCM @ 65 MHz) | ✅ Done |
+| 11 | Timing analysis & frequency optimization (Clock Wizard @ 75 MHz) | ✅ Done |
+
+---
+
+## Getting Started from Scratch
+
+The whole processor was built following a **staged, plan-driven workflow**, and that same workflow is how you should extend or rebuild it. The design is grown **bottom-up, simplest instruction first**: a single `ADD` is made to flow through all five stages before any complexity is added. If you are picking this repo up cold, start here.
+
+### 1. The `plans/` folder is the source of truth for *what* to do
+
+Everything is tracked in [`plans/`](plans/):
+
+- **[`plans/plan.md`](plans/plan.md)** — the master plan. It holds the *Current State Audit* (what's done / what's buggy), the *Resources* table, and the **Deliverables by Stage** table (stages 0–11: bug fixes → Control Unit → ALU/EX → Buffers → MEM → WB → Hazard/Forwarding → Branch/Jump → UART/Debug → Operating Modes → Timing). Read this first to see where things stand.
+- **`plans/stageN.md`** — one detail file per stage (`stage0.md` … `stage11.md`), each following [`plans/stage_template.md`](plans/stage_template.md): *files created/modified*, *design notes* (encoding tables, port lists, truth tables), *test results pasted verbatim*, and a *one-paragraph handoff* to the next stage.
+
+> `plans/` is working notes rather than part of the design itself. The project convention (see `CLAUDE.md` → *Git Conventions*) is to **not** commit changes under `plans/` — update the relevant `stageN.md` as you work, but keep those edits out of your commits.
+
+### 2. The skills are *how* to do it
+
+Each step of the loop is backed by a Claude Code skill. Invoke them by name (`/skill-name`) or just describe the task and the right one triggers:
+
+| When you want to… | Use the skill | Notes |
+|-------------------|---------------|-------|
+| **Understand the architecture** — a hazard, forwarding path, control signal, the datapath, why a stage looks the way it does | **`riscv-expert`** | Grounded in Patterson & Hennessy, *Computer Organization and Design: RISC-V Edition* (Ch. 4 + Appendix A). Ask it **before** writing RTL when the microarchitecture is unclear — e.g. "which forwarding path covers a load-use hazard?", "how is a taken branch flushed?" |
+| **Write / migrate RTL** — `logic`, `always_ff`/`always_comb`, packed structs, avoiding inferred latches, parameterized buffers, formatting with verible | **`systemverilog`** | The house style: `.sv` only, `i_`/`o_`/`w_`/`r_` prefixes, no plain `always`, no hardcoded widths. |
+| **Verify a change** — after every module or edit | **`run-tests`** | Auto-discovers all sources and `tb_*.sv`. Also loads `references/tb_template.sv` when you ask it to write a new testbench. Expected tail: `ALL TESTS PASSED`. |
+| **Build the bitstream & flash the board** | **`program-board`** | Batch Vivado flow (no committed `.xpr`) + UART echo/loopback check. |
+| **Run a program on the already-programmed board** — load, run, read PC/regs/memory, step | **`board-test`** | Drives `tools/gui/riscv_debug.py` over UART. Assumes the board is already flashed with `RiscvTop`. |
+| **Board won't connect** — "no hardware target", JTAG/cable drivers on Linux | **`vivado-linux-debug`** | Digilent cable driver setup, `lsusb` checks. |
+
+### 3. The per-stage loop
+
+For each stage (and for any new instruction or feature):
+
+1. **Read** `plans/stageN.md` and the relevant `plans/plan.md` row to see the deliverables and the handoff from the previous stage.
+2. **Resolve the microarchitecture** with **`riscv-expert`** if anything about the datapath/hazards/control is unclear — cheaper than debugging wrong RTL later.
+3. **Implement** the module with **`systemverilog`** conventions.
+4. **Write a testbench** from `tb_template.sv` (the **`run-tests`** skill provides it) and **run the suite** — nothing advances until it's green.
+5. **Record** the outcome in `plans/stageN.md` (files touched, design notes, pasted test output) and write the one-paragraph handoff to the next stage.
+6. **On hardware**, once the RTL is proven in simulation: **`program-board`** to flash, then **`board-test`** to validate on the physical Basys-3.
+
+This is exactly the sequence that produced the 138-test suite and the hardware-validated design; following it keeps the plan, the code, and the tests in sync.
 
 ---
 
@@ -48,7 +89,7 @@ The processor is built in staged increments. **All stages (0–11) are done and 
 | WB — Write Back | `WriteBackStage` | `src/sources_1/WB/WriteBackStage.sv` |
 
 Pipeline core: `src/sources_1/Top/riscv.sv` — `RISCV` module wiring all stages.
-Synthesis top: `src/sources_1/Top/RiscvTop.sv` — `RiscvTop` SoC (pipeline core + UART + DebugUnit + MMCM @ 65 MHz).
+Synthesis top: `src/sources_1/Top/RiscvTop.sv` — `RiscvTop` SoC (pipeline core + UART + DebugUnit + Clock Wizard IP @ 75 MHz).
 
 ### Pipeline Buffers
 
@@ -120,11 +161,12 @@ Located in `src/sim_1/`. Run them via the `run-tests` skill or the CLI snippet b
 | `tb_Forwarding` | Forwarding + load-use stall | `src/sim_1/Hazard/tb_Forwarding.sv` |
 | `tb_IF_to_WB` | Full IF→ID→EX→MEM→WB integration (NOP-padded) | `src/sim_1/Integrador/tb_IF_to_WB.sv` |
 | `tb_branch` | BNE loop + JAL with flush (Stage 8) | `src/sim_1/Integrador/tb_branch.sv` |
+| `tb_step_branch` | Branch/jump resolution under step-by-step mode | `src/sim_1/Integrador/tb_step_branch.sv` |
 | `tb_lui_bug` | LUI regression (`rd = imm`) | `src/sim_1/EX/tb_lui_bug.sv` |
 | `tb_DebugUnit` | DebugUnit FSM (program load, run, step) | `src/sim_1/Debug/tb_DebugUnit.sv` |
 | `tb_RiscvDebug` | `RiscvTop` SoC end-to-end via UART/debug | `src/sim_1/Debug/tb_RiscvDebug.sv` |
 
-> Full suite: **129 tests passing across 13 testbenches.** Run via the `run-tests` skill or `bash .claude/skills/run-tests/scripts/run_tests.sh`.
+> Full suite: **138 tests passing across 14 testbenches.** Run via the `run-tests` skill or `bash .claude/skills/run-tests/scripts/run_tests.sh`.
 
 ---
 
@@ -134,7 +176,13 @@ Located in `src/sim_1/`. Run them via the `run-tests` skill or the CLI snippet b
 - **Port naming:** `i_` inputs, `o_` outputs, `w_` internal wires, `r_` registers/state.
 - **Parameterization:** all widths (PC, instruction, data) are parameters; default 32-bit. No hardcoded widths.
 - **PC increment:** adds 4 (byte-addressed), aligned with Patterson & Hennessy — the PC indexes bytes. Branch/jump immediates are byte offsets added to the PC directly (no shift).
-- **Instruction memory:** array of `2^NB_ADDR` 32-bit words; fetch indexes with `PC >> 2`. Loaded via `$readmemh("program.hex")` at simulation start; zeroed on reset (program loaded via UART in hardware).
+- **Instruction memory:** array of `2^NB_ADDR` 32-bit words; fetch indexes with `PC >> 2`. Loaded via `$readmemh("program.hex")` at simulation start (program loaded via UART in hardware). The memories are **not** cleared on reset — the synchronous reset branch was removed so the arrays infer BRAM (see the Timing section).
+
+---
+
+## Learning Resources
+
+- **Verilog → SystemVerilog migration guide** — [`html/verilog-to-sv/verilog_to_sv.html`](html/verilog-to-sv/verilog_to_sv.html) is a self-contained HTML guide (*"De Verilog a SystemVerilog — Guía Completa"*) covering why and how the RTL moved to SystemVerilog: typed `logic`, `always_ff`/`always_comb`, packed structs/enums, and the conventions this repo follows. Open it in a browser. For interactive help while writing RTL, use the **`systemverilog`** skill; for architecture questions, the **`riscv-expert`** skill (see [Getting Started from Scratch](#getting-started-from-scratch)).
 
 ---
 
@@ -173,15 +221,22 @@ Managed with `uv`; see [`tools/gui/README.md`](tools/gui/README.md) for usage.
 
 ## Timing
 
-The design did **not** close timing at 100 MHz. An MMCM in `RiscvTop` clocks the whole SoC at **65 MHz** (WNS +0.319 ns), the max reliable frequency for the 32-bit datapath; 60/50 MHz also work with more margin. The Fmax ceiling (~75 MHz) is set by the dump path (core → DebugUnit), which crosses `posedge → negedge` and so gets only half a period — it is routing-dominated and unaffected by data width. Narrowing the datapath from 64→32 bits cut LUTs ~32% and raised the reliable Fmax from 60→65 MHz, but pushing past ~70 MHz explodes control sets (timing-driven register replication), saturating slices. To go higher you must register/re-clock the dump path or move data memory to BRAM. See `docs/reports/report-20260628.md` and `docs/reports/report-fmax-sweep-dw32-20260629.md`.
+A Clock Wizard IP in `RiscvTop` clocks the whole SoC at **75 MHz**, with full setup **and** hold closure: **WNS +0.634 ns, WHS +0.074 ns, 0 failing endpoints**.
+
+Reaching 75 MHz took two changes (see [`docs/reports/report-timing-75mhz.md`](docs/reports/report-timing-75mhz.md)):
+
+1. **Removed the global synchronous reset from `InstructionMemory` and `DataMemory`.** The `if (i_reset) …` clear-the-whole-array branch forced the memories to synthesize as ~8000 fabric flip-flops (a BRAM can't zero every word in one cycle), which put the program-load path (`DebugUnit → InstructionMemory` enables) into a huge-fanout, routing-dominated critical path. Removing it lets the arrays infer **BRAM**, dropping endpoints from ~37000 to ~7100 and flipping setup from WNS −0.281 → +0.632 ns.
+2. **Removed a duplicate `create_clock -add` from the XDC**, which had introduced a false hold violation across the two clock objects.
+
+This **supersedes** the earlier ~75 MHz "ceiling" attributed to the dump path (`docs/reports/report-fmax-sweep-dw32-20260629.md`): that path was slow precisely because the memories were in fabric, and moving them to BRAM resolved it. Earlier history (the 65 MHz MMCM stage and the datapath narrowing from 64→32 bits, which cut LUTs ~32%) is in `docs/reports/report-20260628.md` and `docs/reports/report-fmax-sweep-dw32-20260629.md`.
 
 ---
 
 ## Known Issues / WIP
 
 - **`DataMemory` is word-addressed**, an independent addressing axis from the byte-addressed PC — known debt if end-to-end byte addressing is desired.
-- Programs **must end with `HALT`** (custom-0 opcode `0x0000000B`); the loader zero-pads memory and zeros decode as NOPs. See `docs/CONSIDERACIONES.md` C-004.
-- The dump path is the timing bottleneck (see **Timing** above); it caps Fmax around 75 MHz regardless of datapath width.
+- Programs **must end with `HALT`** (custom-0 opcode `0x0000000B`); the loader zero-pads memory and zeros decode as NOPs. See `docs/utils/CONSIDERACIONES.md` C-004.
+- The memories **infer BRAM and are not cleared on reset** (this is what closed timing at 75 MHz — see **Timing** above); in hardware the program is (re)loaded over UART before each run.
 
 ---
 
