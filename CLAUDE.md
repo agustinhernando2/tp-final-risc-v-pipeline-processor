@@ -82,8 +82,6 @@ Common types: `feat`, `fix`, `refactor`, `test`, `chore`, `docs`.
 
 Do not add `Co-Authored-By` or any mention that the commit was written by Claude.
 
-Do not commit files under `plans/` — they are working notes, not part of the source history.
-
 ### Branch naming → versioning
 
 | Branch prefix | Effect |
@@ -100,9 +98,3 @@ Do not commit files under `plans/` — they are working notes, not part of the s
 The full staged implementation plan lives in [`plans/plan.md`](plans/plan.md). It covers stages 0–11 (bug fixes → Control Unit → ALU/EX → Buffers → MEM → WB → Hazard/Forwarding → Branch/Jump → UART/Debug → Operating Modes → Timing). Check that file for current stage status, per-stage deliverables, and detail files (`plans/stageN.md`).
 
 **Current progress:** Stages 0–11 are DONE and **validated on the physical Basys-3** (UART, program load, continuous + step-by-step debug, timing closed). A Clock Wizard IP in `RiscvTop` clocks the whole SoC at **75 MHz** with full setup **and** hold closure (WNS +0.634 ns, WHS +0.074 ns; see `docs/reports/report-timing-75mhz.md`). The datapath is **`DATA_WIDTH=32`** (RV32); the PC stays 64-bit (`NB_PC=64`). Stage 10 operating modes are covered by the DebugUnit FSM (no separate doc).
-
-## Known Issues / WIP
-
-- Synthesis top is `RiscvTop` (`src/sources_1/Top/RiscvTop.sv`); the bare `RISCV` module is the pipeline core. Board bring-up uses `tools/gui/riscv_debug.py`. UART + DebugUnit + step-by-step are validated on the physical Basys-3.
-- HALT is a dedicated custom-0 opcode `0x0000000B`; programs must end with it (loader zero-pads, and zeros decode to NOPs). See `docs/utils/CONSIDERACIONES.md` C-004.
-- **Timing (Stage 11, DONE):** the SoC closes timing at **75 MHz** (WNS +0.634 ns, WHS +0.074 ns, 0 failing endpoints). Two changes got it there (see `docs/reports/report-timing-75mhz.md`): (1) removing the global synchronous reset (`if (i_reset) ...` clear-the-whole-array) from `InstructionMemory.sv`/`DataMemory.sv` so the arrays infer **BRAM** instead of ~8000 fabric FFs — this fixed the routing-dominated program-load setup path and dropped endpoints ~37000→~7100; (2) removing a duplicate `create_clock -add` from the XDC that had introduced a false hold violation. This supersedes the earlier ~75 MHz dump-path "ceiling" and the 65 MHz MMCM stage documented in `docs/reports/report-20260628.md` and `docs/reports/report-fmax-sweep-dw32-20260629.md`. Earlier history: narrowing the datapath 64→32 bits cut LUTs ~32%. See also `plans/stage11.md`.

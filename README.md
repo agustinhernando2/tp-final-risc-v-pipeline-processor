@@ -44,9 +44,7 @@ The whole processor was built following a **staged, plan-driven workflow**, and 
 Everything is tracked in [`plans/`](plans/):
 
 - **[`plans/plan.md`](plans/plan.md)** — the master plan. It holds the *Current State Audit* (what's done / what's buggy), the *Resources* table, and the **Deliverables by Stage** table (stages 0–11: bug fixes → Control Unit → ALU/EX → Buffers → MEM → WB → Hazard/Forwarding → Branch/Jump → UART/Debug → Operating Modes → Timing). Read this first to see where things stand.
-- **`plans/stageN.md`** — one detail file per stage (`stage0.md` … `stage11.md`), each following [`plans/stage_template.md`](plans/stage_template.md): *files created/modified*, *design notes* (encoding tables, port lists, truth tables), *test results pasted verbatim*, and a *one-paragraph handoff* to the next stage.
-
-> `plans/` is working notes rather than part of the design itself. The project convention (see `CLAUDE.md` → *Git Conventions*) is to **not** commit changes under `plans/` — update the relevant `stageN.md` as you work, but keep those edits out of your commits.
+- **`plans/stageN.md`** — one detail file per stage (`stage0.md` … `stage11.md`), each following [`plans/stage_template.md`](plans/stage_template.md): *files created/modified*, *design notes* (encoding tables, port lists, truth tables), *test results pasted verbatim*, and a *one-paragraph handoff* to the next stage. Keep the relevant `stageN.md` updated as you work.
 
 ### 2. The skills are *how* to do it
 
